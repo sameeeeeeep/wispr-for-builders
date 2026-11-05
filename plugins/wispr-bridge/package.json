@@ -2,7 +2,7 @@
   "name": "wispr-bridge",
   "version": "0.1.0",
   "private": true,
-  "description": "Ultralight harness for made-for-Wispr Claude Code mods: route a dictated request, present a numbered card, notify. Unofficial.",
+  "description": "Ultralight harness for the Wispr for Builders Claude Code mods: route a dictated request, present a numbered card, notify.",
   "main": "lib/bridge.mjs",
   "bin": { "wispr-bridge": "bin/wispr-bridge" },
   "engines": { "node": ">=18" }

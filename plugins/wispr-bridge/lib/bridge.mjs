@@ -1,4 +1,4 @@
-// wispr-bridge — the ultralight harness every "made for Wispr" pack mod uses. Unofficial.
+// wispr-bridge — the ultralight harness every Wispr for Builders mod uses.
 // See ../API.md. Zero dependencies: Node 18+ built-ins only.
 //
 //   import { present, notify, progress, classify, route, ask } from '~/.wispr-bridge/lib/bridge.mjs'
@@ -76,11 +76,12 @@ export async function notify(text, { title, ttl = 3, wait = false, at } = {}) {
   p.unref()
 }
 
-export async function progress(text, { id = 'default', done = false, title } = {}) {
+// busy:false = a status pill with no spinner; run = [absolute executable, ...args] started on click; closable adds ×.
+export async function progress(text, { id = 'default', done = false, title, busy, run: onClick, closable } = {}) {
   mkdirSync(PROGRESS_DIR, { recursive: true })
   const file = join(PROGRESS_DIR, id.replace(/[^\w.-]/g, '_') + '.json')
   const pidFile = file + '.pid'
-  writeFileSync(file, JSON.stringify({ text: String(text ?? ''), title, done }))
+  writeFileSync(file, JSON.stringify({ text: String(text ?? ''), title, done, busy, run: onClick, closable }))
   let alive = false
   try { const pid = Number(readFileSync(pidFile, 'utf8')); process.kill(pid, 0); alive = true } catch {}
   if (done) {

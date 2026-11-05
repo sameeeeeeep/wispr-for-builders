@@ -1,4 +1,4 @@
-// Wispr Review (made for Wispr, unofficial) — background.
+// Wispr Review — background.
 // Toolbar button or Option+Shift+R toggles review on the current site. Sites that are on get content.js on every
 // page load (registered per hostname, like portfolio/build/review/extension). Also: screenshots for crops, and an
 // optional local sink (wispr-review serve, 127.0.0.1:4377) that writes notes to ~/.wispr-review so Claude can read them.

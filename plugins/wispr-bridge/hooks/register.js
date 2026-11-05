@@ -1,4 +1,4 @@
-// wispr-bridge — made for Wispr (unofficial). See ../API.md.
+// Wispr Bridge. See ../API.md.
 // On session start: link ~/.wispr-bridge/{bin,lib} to this plugin so every pack mod and shell can
 // call `~/.wispr-bridge/bin/wispr-bridge`. Adds /wispr: ask · route <text> · test · handlers.
 // The mod never opens the microphone: voice arrives as text Wispr types into the card's field.

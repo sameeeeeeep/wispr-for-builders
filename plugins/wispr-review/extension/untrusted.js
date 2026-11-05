@@ -1,4 +1,4 @@
-// Wispr Review (made for Wispr, unofficial): what goes to Claude.
+// Wispr Review: what goes to Claude.
 // A note has two kinds of data. `text` is the user's own words (dictated or typed): the request. Everything else
 // was read from the website (element text, headings, document.title, the selector, the URL), and a page can put
 // anything there, including "ignore previous instructions...". So the prompt keeps the instructions and the

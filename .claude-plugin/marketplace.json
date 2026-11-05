@@ -1,6 +1,6 @@
 {
   "name": "wispr-for-builders",
-  "description": "Wispr for Builders, Pack 1: Claude Code mods made for Wispr Flow. Say it, and your Mac does it. Unofficial; not affiliated with Wispr.",
+  "description": "Wispr for Builders, Pack 1: Claude Code mods for Wispr Flow. Say it, and your Mac does it.",
   "owner": { "name": "Sameep Rehlan", "url": "https://sameep.ai" },
   "metadata": { "version": "0.1.0" },
   "plugins": [

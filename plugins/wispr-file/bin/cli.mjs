@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// wispr-file — find any file by voice. Made for Wispr (unofficial).
+// Wispr File — find any file by voice.
 //   wispr-file "find my passport photo"            search, show the card, act on the pick
 //   wispr-file "<request>" --dry-run               print plan, timings and top hits (no card)
 //   wispr-file "<request>" --smart                 also let Claude re-rank (file names + metadata only)

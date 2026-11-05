@@ -1,4 +1,4 @@
-# Wispr PM (made for Wispr)
+# Wispr PM
 
 Run your task boards by voice. Dictate with Wispr Flow and the board does the rest:
 
@@ -13,7 +13,7 @@ Run your task boards by voice. Dictate with Wispr Flow and the board does the re
 | "what's waiting on me" | every card in review across all boards (finished threads land here), as a card |
 | "mark the hero fix done" | ticks it off |
 
-Unofficial. Not affiliated with Wispr. The mod never opens the microphone: Wispr types the words into
+The mod never opens the microphone: Wispr types the words into
 the bridge's floating field, the `/pm` command, or the CLI.
 
 ## Try it

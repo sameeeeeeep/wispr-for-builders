@@ -13,5 +13,4 @@ If the person asks you to "install Wispr for Builders" (pack 1, or any mod in it
    extension in chrome://extensions.
 5. Suggest one thing to say for each mod they installed (the list install.sh prints at the end).
 
-Do not edit files under `plugins/` while installing. These mods are unofficial and made for Wispr
-Flow users; they are not a Wispr product, so never describe them as one.
+Do not edit files under `plugins/` while installing.

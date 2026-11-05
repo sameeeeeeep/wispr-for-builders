@@ -1,4 +1,4 @@
-// wispr-wish — made for Wispr (unofficial). See ../README.md.
+// Wispr Wish. See ../README.md.
 // On session start: link ~/.wispr-wish/bin/wispr-wish and register it with Wispr Bridge for the
 // `convert` and `wish.run` intents. Adds /wish <what you said> · /wish ask · /wish test.
 // Never opens the microphone: Wispr types the request; files come from the Finder selection.

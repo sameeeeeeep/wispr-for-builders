@@ -6,7 +6,7 @@
 #   ./install.sh --plugins-only  only the Claude Code plugins
 #   ./install.sh wispr-file ...  only the mods you name
 #
-# Everything runs on this Mac. Nothing here uploads files. Unofficial; not affiliated with Wispr.
+# Everything runs on this Mac. Nothing here uploads files.
 set -eu
 ROOT=$(cd "$(dirname "$0")" && pwd)
 MODE=all

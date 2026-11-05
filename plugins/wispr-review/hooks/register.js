@@ -1,4 +1,4 @@
-// wispr-review — made for Wispr (unofficial). On session start: link ~/.wispr-review/bin/wispr-review and start the
+// Wispr Review. On session start: link ~/.wispr-review/bin/wispr-review and start the
 // local inbox the Chrome extension posts notes to. /wispr-review: notes · install · done <n> · doctor.
 export function register(on) {
   on('session.start', async ($, e, next) => {

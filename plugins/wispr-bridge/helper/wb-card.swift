@@ -1,4 +1,7 @@
-// wb-card — one-shot native card for Wispr Bridge (made for Wispr; unofficial).
+// wb-card — one-shot native card for Wispr Bridge.
+//
+// Drawn with WisprTheme (../../wispr-theme/WisprTheme.swift): build.sh concatenates the theme ahead of
+// this file, so build with ./build.sh rather than swiftc on this file alone.
 //
 // Extended from the Switchboard notch's sb-card. One JSON argument, draws, waits, prints one JSON
 // line on stdout, exits. No network, no microphone: voice arrives as text that Wispr types into the
@@ -27,15 +30,278 @@ struct Spec: Decodable {
     let focus: Bool?
 }
 
-struct Palette {
-    let bg, raised, border, text, muted, accent: Color
-    static func hex(_ v: UInt32) -> Color {
-        Color(red: Double((v >> 16) & 0xFF) / 255, green: Double((v >> 8) & 0xFF) / 255, blue: Double(v & 0xFF) / 255)
+
+// ── look: WisprTheme (concatenated ahead of this file by build.sh) ──
+typealias W = WisprTheme
+/// Room around each card so its shadow is not clipped by the borderless window.
+let shadowPad: CGFloat = 18
+
+struct Hint: View {
+    let key: String; let what: String
+    var body: some View {
+        HStack(spacing: 5) {
+            WisprKeycap(label: key, size: 11)
+            Text(what).font(W.sans(12.5, .medium)).foregroundColor(W.fg2)
+        }
     }
-    static let light = Palette(bg: hex(0xFAF9F5), raised: hex(0xF0EEE6), border: hex(0xE3E0D5),
-                               text: hex(0x141413), muted: hex(0x6B6A65), accent: hex(0x6E56CF))
-    static let dark = Palette(bg: hex(0x1F1F1E), raised: hex(0x2C2C2A), border: hex(0x3A3A37),
-                              text: hex(0xFAF9F5), muted: hex(0xA3A29C), accent: hex(0x9E8CFC))
+}
+
+/// Flow's hold-to-talk line: "Hold [fn] and speak", keycap inline.
+struct HoldToSpeak: View {
+    var then: String = "and speak"
+    var body: some View {
+        HStack(spacing: 5) {
+            Text("Hold").font(W.sans(12.5, .medium)).foregroundColor(W.fg2)
+            WisprKeycap(label: "fn", size: 11)
+            Text(then).font(W.sans(12.5, .medium)).foregroundColor(W.fg2)
+        }
+    }
+}
+
+struct Badge: View {
+    let n: Int; let on: Bool
+    var body: some View {
+        Text("\(n)").font(W.sans(12, .semibold)).foregroundColor(on ? W.onPrimary : W.vast900)
+            .frame(width: 22, height: 22)
+            .background(RoundedRectangle(cornerRadius: W.rSM).fill(on ? W.primary : Color.white))
+            .overlay(RoundedRectangle(cornerRadius: W.rSM).stroke(on ? Color.clear : W.border, lineWidth: 1))
+    }
+}
+
+struct PresentView: View {
+    @ObservedObject var m: Model
+    @FocusState var focused: Bool
+    var width: CGFloat { m.grid ? max(480, CGFloat(min(3, max(2, m.opts.count))) * 168 - 12 + 48) : 480 }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                WisprLockup(name: "Wispr Bridge", size: 13)
+                Spacer()
+                if m.multi {
+                    Text("Pick any").font(W.sans(11, .medium)).foregroundColor(W.fg2)
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .background(RoundedRectangle(cornerRadius: W.rSM).fill(W.sand600))
+                }
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(m.spec.title ?? "Pick one")
+                    .font(W.sans(17, .semibold)).foregroundColor(W.fg)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let s = m.spec.subtitle, !s.isEmpty {
+                    Text(s).font(W.sans(13)).foregroundColor(W.fg2).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            if m.grid { grid } else { list }
+            TextField("", text: $m.typed,
+                      prompt: Text(m.multi ? "Click to toggle, then press return" : "Add a note, or type a number")
+                        .foregroundColor(W.fg3))
+                .textFieldStyle(.plain).font(W.sans(13.5)).foregroundColor(W.fg)
+                .padding(.horizontal, 12).frame(height: 36)
+                .background(RoundedRectangle(cornerRadius: W.rMD).fill(Color.white))
+                .overlay(RoundedRectangle(cornerRadius: W.rMD).stroke(focused ? W.vast700 : W.border, lineWidth: 1))
+                .animation(W.ease, value: focused)
+                .focused($focused)
+                .onSubmit { m.submit() }
+                .onChange(of: m.typed) { _ in m.typedChanged() }
+            HStack(spacing: 12) {
+                // Digits are text in the focused field: "2 ↵" picks, "1 but shorter ↵" picks with a note.
+                HoldToSpeak()
+                Hint(key: m.multi ? "1 3 ↵" : "1–\(max(1, m.opts.count))", what: "to pick")
+                Spacer()
+                Button("Not now") { emit(["cancelled": true, "reason": "dismissed"]) }
+                    .buttonStyle(WisprButtonStyle(kind: .ghost, height: 30))
+                if m.multi {
+                    Button("Done") { m.finish(m.chosen.isEmpty ? [m.selected] : Array(m.chosen)) }
+                        .buttonStyle(WisprButtonStyle(kind: .primary, height: 30))
+                }
+            }
+        }
+        .padding(24)
+        .frame(width: width)
+        .wisprSurface()
+        .padding(shadowPad)
+        .scaleEffect(m.shown ? 1 : 0.97, anchor: .top)
+        .opacity(m.shown ? 1 : 0)
+        .onAppear { focused = true }
+        .onHover { if $0 { claimFocus() } }
+    }
+
+    func isOn(_ i: Int) -> Bool { m.multi ? m.chosen.contains(i) : (i == m.selected) }
+
+    var cols: Int { min(3, max(2, m.opts.count)) }
+    // Explicit rows (not LazyVGrid) so the hosting view has a real fitting size.
+    var grid: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(Array(stride(from: 0, to: m.opts.count, by: cols)), id: \.self) { start in
+                HStack(alignment: .top, spacing: 12) {
+                    ForEach(start..<min(start + cols, m.opts.count), id: \.self) { i in tile(i) }
+                }
+            }
+        }
+    }
+
+    func tile(_ i: Int) -> some View {
+        let o = m.opts[i]
+        return Button { m.tap(i) } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                ZStack(alignment: .topLeading) {
+                    Group {
+                        if let img = m.images[i] {
+                            Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
+                        } else {
+                            Rectangle().fill(W.sand500)
+                                .overlay(Text("No preview").font(W.sans(11)).foregroundColor(W.fg3))
+                        }
+                    }
+                    .frame(width: 156, height: 112).clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: W.rMD))
+                    Badge(n: i + 1, on: isOn(i)).padding(7)
+                }
+                .frame(width: 156, height: 112)
+                .overlay(RoundedRectangle(cornerRadius: W.rMD)
+                    .stroke(isOn(i) ? W.vast950 : W.border, lineWidth: isOn(i) ? 2 : 1))
+                Text(o.label).font(W.sans(13, .medium)).foregroundColor(W.fg).lineLimit(1)
+                if let d = o.detail, !d.isEmpty {
+                    Text(d).font(W.sans(11.5)).foregroundColor(W.fg2).lineLimit(1)
+                }
+            }
+            .frame(width: 156, alignment: .leading)
+            .scaleEffect(m.flash == i ? 0.97 : 1)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { if $0 { m.selected = i } }
+    }
+
+    var list: some View {
+        VStack(spacing: 6) {
+            ForEach(Array(m.opts.enumerated()), id: \.offset) { i, o in
+                Button { m.tap(i) } label: {
+                    HStack(alignment: .top, spacing: 10) {
+                        Badge(n: i + 1, on: isOn(i))
+                        if let img = m.images[i] {
+                            Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
+                                .frame(width: 34, height: 34).clipShape(RoundedRectangle(cornerRadius: W.rSM))
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(o.label).font(W.sans(14, .medium)).foregroundColor(W.fg)
+                            if let d = o.detail, !d.isEmpty {
+                                Text(d).font(W.sans(12.5)).foregroundColor(W.fg2)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 10).padding(.vertical, 9)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: W.rMD).fill(i == m.selected ? W.sand600 : Color.white))
+                    .overlay(RoundedRectangle(cornerRadius: W.rMD).stroke(isOn(i) ? W.vast950 : W.border, lineWidth: 1))
+                    .animation(W.ease, value: m.selected)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .onHover { if $0 { m.selected = i } }
+            }
+        }
+    }
+}
+
+// ── notify / progress pill ──
+final class PillModel: ObservableObject {
+    @Published var title: String?
+    @Published var text: String
+    @Published var busy: Bool
+    @Published var tappable = false
+    var onTap: (() -> Void)?
+    var onClose: (() -> Void)?
+    @Published var shown = true
+    init(title: String?, text: String, busy: Bool) { self.title = title; self.text = text; self.busy = busy }
+}
+
+struct PillView: View {
+    @ObservedObject var m: PillModel
+    var body: some View {
+        HStack(spacing: 10) {
+            if m.busy { ProgressView().controlSize(.small).scaleEffect(0.8).tint(W.fg) }
+            else { Circle().fill(W.vast950).frame(width: 7, height: 7) }
+            VStack(alignment: .leading, spacing: 2) {
+                Text((m.title ?? "").isEmpty ? "Wispr Bridge" : m.title!).font(W.sans(12, .bold)).tracking(-0.2).foregroundColor(W.fg)
+                Text(m.text).font(W.sans(13.5)).foregroundColor(W.fg2)
+                    .lineLimit(3).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+            if m.onClose != nil {
+                Button(action: { m.onClose?() }) {
+                    Image(systemName: "xmark").font(.system(size: 10, weight: .semibold)).foregroundColor(W.fg3)
+                        .frame(width: 22, height: 22).contentShape(Rectangle())
+                }.buttonStyle(.plain).help("Dismiss")
+            }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .frame(width: 340)
+        .wisprSurface()
+        .contentShape(Rectangle())
+        .onTapGesture { m.onTap?() }
+        .onHover { h in if m.tappable { (h ? NSCursor.pointingHand : NSCursor.arrow).set() } }
+        .padding(shadowPad)
+        .opacity(m.shown ? 1 : 0)
+        .offset(y: m.shown ? 0 : -8)
+    }
+}
+
+// ── ask: floating field for Wispr to dictate into ──
+final class AskModel: ObservableObject { @Published var text = ""; @Published var shown = true }
+struct AskView: View {
+    @ObservedObject var m: AskModel
+    let title: String; let placeholder: String
+    @FocusState var focused: Bool
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                WisprLockup(name: "Wispr Bridge", size: 13)
+                if !title.isEmpty {
+                    Text(title).font(W.sans(12.5)).foregroundColor(W.fg3).lineLimit(1)
+                }
+                Spacer()
+                HoldToSpeak()
+            }
+            TextField("", text: $m.text, prompt: Text(placeholder).foregroundColor(W.fg3), axis: .vertical)
+                .textFieldStyle(.plain).font(W.serif(22)).foregroundColor(W.fg)
+                .lineLimit(1...4)
+                .focused($focused)
+                .onSubmit {
+                    let t = m.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if t.isEmpty { emit(["cancelled": true, "reason": "empty"]) } else { emit(["text": t]) }
+                }
+            HStack(spacing: 12) {
+                Hint(key: "return", what: "to send")
+                Hint(key: "esc", what: "to close")
+                Spacer()
+            }
+        }
+        .padding(24).frame(width: 560)
+        .wisprSurface()
+        .padding(shadowPad)
+        .scaleEffect(m.shown ? 1 : 0.97).opacity(m.shown ? 1 : 0)
+        .onAppear { focused = true }
+    }
+}
+
+/// The plugin folder that holds fonts/: $WISPR_PLUGIN_ROOT, else the folder above helper/ (this binary
+/// lives at <plugin>/helper/wb-card, or <plugin>/vendor/wispr-bridge/helper/wb-card when vendored).
+func pluginRoot() -> URL {
+    let fm = FileManager.default
+    var cands: [URL] = []
+    for k in ["WISPR_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT"] {
+        if let v = ProcessInfo.processInfo.environment[k], !v.isEmpty { cands.append(URL(fileURLWithPath: v)) }
+    }
+    let exe = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+    cands.append(exe.deletingLastPathComponent().deletingLastPathComponent())
+    cands.append(exe.deletingLastPathComponent())
+    cands.append(URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".wispr-bridge"))
+    return cands.first { fm.fileExists(atPath: $0.appendingPathComponent("fonts").path) }
+        ?? exe.deletingLastPathComponent().deletingLastPathComponent()
 }
 
 func emit(_ obj: [String: Any]) -> Never {
@@ -177,227 +443,6 @@ final class Model: ObservableObject {
     }
 }
 
-struct Hint: View {
-    let key: String; let what: String; let p: Palette
-    var body: some View {
-        HStack(spacing: 4) {
-            Text(key).font(.system(size: 9.5, weight: .medium)).foregroundColor(p.muted)
-                .padding(.horizontal, 4).padding(.vertical, 1)
-                .background(RoundedRectangle(cornerRadius: 4).stroke(p.border, lineWidth: 1))
-            Text(what).font(.system(size: 10)).foregroundColor(p.muted)
-        }
-    }
-}
-
-struct Badge: View {
-    let n: Int; let on: Bool; let p: Palette
-    var body: some View {
-        Text("\(n)").font(.system(size: 11, weight: .bold)).foregroundColor(on ? .white : p.text)
-            .frame(width: 22, height: 22)
-            .background(RoundedRectangle(cornerRadius: 7).fill(on ? p.accent : p.bg.opacity(0.92)))
-            .overlay(RoundedRectangle(cornerRadius: 7).stroke(on ? .clear : p.border, lineWidth: 1))
-    }
-}
-
-struct PresentView: View {
-    @ObservedObject var m: Model
-    @Environment(\.colorScheme) var scheme
-    @FocusState var focused: Bool
-    var p: Palette { scheme == .dark ? .dark : .light }
-    var width: CGFloat { m.grid ? CGFloat(min(3, max(2, m.opts.count))) * 168 - 12 + 36 : 440 }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 6) {
-                Circle().fill(p.accent).frame(width: 7, height: 7)
-                Text("made for Wispr").font(.system(size: 10.5, weight: .medium)).foregroundColor(p.muted)
-                Spacer()
-                if m.multi { Text("pick any").font(.system(size: 10.5)).foregroundColor(p.muted) }
-            }
-            VStack(alignment: .leading, spacing: 3) {
-                Text(m.spec.title ?? "Pick one")
-                    .font(.system(size: 16, weight: .semibold)).foregroundColor(p.text)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let s = m.spec.subtitle, !s.isEmpty {
-                    Text(s).font(.system(size: 12)).foregroundColor(p.muted).fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            if m.grid { grid } else { list }
-            TextField("", text: $m.typed,
-                      prompt: Text(m.multi ? "Say \"one and three\", or click, then ↵" : "Say \"two\", or type anything")
-                        .foregroundColor(p.muted.opacity(0.7)))
-                .textFieldStyle(.plain).font(.system(size: 12.5)).foregroundColor(p.text)
-                .padding(.horizontal, 11).padding(.vertical, 8)
-                .background(RoundedRectangle(cornerRadius: 10).fill(p.raised.opacity(0.6)))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(focused ? p.accent.opacity(0.6) : p.border, lineWidth: 1))
-                .focused($focused)
-                .onSubmit { m.submit() }
-                .onChange(of: m.typed) { _ in m.typedChanged() }
-            HStack(spacing: 10) {
-                // Digits are text in the focused field: "2 ↵" picks, "1 but shorter ↵" picks with a note.
-                Hint(key: m.multi ? "1 3 ↵" : "1–\(max(1, m.opts.count)) ↵", what: m.multi ? "pick" : "type to pick", p: p)
-                Hint(key: "↑↓ ↵", what: "move", p: p)
-                Hint(key: "esc", what: "dismiss", p: p)
-                Spacer()
-                Text("or say anything · drag to move").font(.system(size: 10)).foregroundColor(p.muted.opacity(0.7))
-            }
-        }
-        .padding(18)
-        .frame(width: width)
-        .background(RoundedRectangle(cornerRadius: 18).fill(p.bg))
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(p.border, lineWidth: 1))
-        .scaleEffect(m.shown ? 1 : 0.94, anchor: .top)
-        .opacity(m.shown ? 1 : 0)
-        .onAppear { focused = true }
-        .onHover { if $0 { claimFocus() } }
-    }
-
-    func isOn(_ i: Int) -> Bool { m.multi ? m.chosen.contains(i) : (i == m.selected) }
-
-    var cols: Int { min(3, max(2, m.opts.count)) }
-    // Explicit rows (not LazyVGrid) so the hosting view has a real fitting size.
-    var grid: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(Array(stride(from: 0, to: m.opts.count, by: cols)), id: \.self) { start in
-                HStack(alignment: .top, spacing: 12) {
-                    ForEach(start..<min(start + cols, m.opts.count), id: \.self) { i in tile(i) }
-                }
-            }
-        }
-    }
-
-    func tile(_ i: Int) -> some View {
-        let o = m.opts[i]
-        return Button { m.tap(i) } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                ZStack(alignment: .topLeading) {
-                    Group {
-                        if let img = m.images[i] {
-                            Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
-                        } else {
-                            Rectangle().fill(p.raised)
-                                .overlay(Text("no preview").font(.system(size: 10)).foregroundColor(p.muted))
-                        }
-                    }
-                    .frame(width: 156, height: 112).clipped()
-                    .clipShape(RoundedRectangle(cornerRadius: 11))
-                    Badge(n: i + 1, on: isOn(i), p: p).padding(7)
-                }
-                .frame(width: 156, height: 112)
-                .overlay(RoundedRectangle(cornerRadius: 11)
-                    .stroke(isOn(i) ? p.accent : p.border, lineWidth: isOn(i) ? 2.5 : 1))
-                Text(o.label).font(.system(size: 12, weight: .medium)).foregroundColor(p.text).lineLimit(1)
-                if let d = o.detail, !d.isEmpty {
-                    Text(d).font(.system(size: 10.5)).foregroundColor(p.muted).lineLimit(1)
-                }
-            }
-            .frame(width: 156, alignment: .leading)
-            .scaleEffect(m.flash == i ? 0.96 : 1)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { if $0 { m.selected = i } }
-    }
-
-    var list: some View {
-        VStack(spacing: 6) {
-            ForEach(Array(m.opts.enumerated()), id: \.offset) { i, o in
-                Button { m.tap(i) } label: {
-                    HStack(alignment: .top, spacing: 10) {
-                        Badge(n: i + 1, on: isOn(i), p: p)
-                        if let img = m.images[i] {
-                            Image(nsImage: img).resizable().aspectRatio(contentMode: .fill)
-                                .frame(width: 34, height: 34).clipShape(RoundedRectangle(cornerRadius: 6))
-                        }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(o.label).font(.system(size: 13, weight: .medium)).foregroundColor(p.text)
-                            if let d = o.detail, !d.isEmpty {
-                                Text(d).font(.system(size: 11.5)).foregroundColor(p.muted)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.horizontal, 10).padding(.vertical, 8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 11).fill(i == m.selected ? p.raised : .clear))
-                    .overlay(RoundedRectangle(cornerRadius: 11).stroke(isOn(i) ? p.accent.opacity(0.6) : p.border, lineWidth: 1))
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .onHover { if $0 { m.selected = i } }
-            }
-        }
-    }
-}
-
-// ── notify / progress pill ──
-final class PillModel: ObservableObject {
-    @Published var title: String?
-    @Published var text: String
-    @Published var busy: Bool
-    @Published var shown = true
-    init(title: String?, text: String, busy: Bool) { self.title = title; self.text = text; self.busy = busy }
-}
-
-struct PillView: View {
-    @ObservedObject var m: PillModel
-    @Environment(\.colorScheme) var scheme
-    var p: Palette { scheme == .dark ? .dark : .light }
-    var body: some View {
-        HStack(spacing: 10) {
-            if m.busy { ProgressView().controlSize(.small).scaleEffect(0.8) }
-            else { Circle().fill(p.accent).frame(width: 8, height: 8) }
-            VStack(alignment: .leading, spacing: 1) {
-                if let t = m.title, !t.isEmpty {
-                    Text(t).font(.system(size: 10.5, weight: .medium)).foregroundColor(p.muted)
-                }
-                Text(m.text).font(.system(size: 13, weight: .medium)).foregroundColor(p.text)
-                    .lineLimit(3).fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .frame(width: 340)
-        .background(RoundedRectangle(cornerRadius: 14).fill(p.bg))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(p.border, lineWidth: 1))
-        .opacity(m.shown ? 1 : 0)
-        .offset(y: m.shown ? 0 : -8)
-    }
-}
-
-// ── ask: floating field for Wispr to dictate into ──
-final class AskModel: ObservableObject { @Published var text = ""; @Published var shown = true }
-struct AskView: View {
-    @ObservedObject var m: AskModel
-    let title: String; let placeholder: String
-    @Environment(\.colorScheme) var scheme
-    @FocusState var focused: Bool
-    var p: Palette { scheme == .dark ? .dark : .light }
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Circle().fill(p.accent).frame(width: 7, height: 7)
-                Text(title).font(.system(size: 10.5, weight: .medium)).foregroundColor(p.muted)
-                Spacer()
-                Hint(key: "↵", what: "go", p: p); Hint(key: "esc", what: "close", p: p)
-            }
-            TextField("", text: $m.text, prompt: Text(placeholder).foregroundColor(p.muted.opacity(0.7)), axis: .vertical)
-                .textFieldStyle(.plain).font(.system(size: 17)).foregroundColor(p.text)
-                .lineLimit(1...4)
-                .focused($focused)
-                .onSubmit {
-                    let t = m.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if t.isEmpty { emit(["cancelled": true, "reason": "empty"]) } else { emit(["text": t]) }
-                }
-        }
-        .padding(16).frame(width: 520)
-        .background(RoundedRectangle(cornerRadius: 16).fill(p.bg))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(p.accent.opacity(0.5), lineWidth: 1.5))
-        .scaleEffect(m.shown ? 1 : 0.96).opacity(m.shown ? 1 : 0)
-        .onAppear { focused = true }
-    }
-}
 
 final class CardPanel: NSPanel {
     override var canBecomeKey: Bool { true }
@@ -442,6 +487,9 @@ func claimFocus() {
 }
 
 // ── main ──
+// Timeouts count from launch, not from when AppKit is ready: on a busy Mac startup can take 10–20 s, and the
+// caller's own deadline (timeout + a margin) must still find this card's answer.
+let launched = DispatchTime.now()
 var raw = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : ""
 if raw.hasPrefix("@") { raw = (try? String(contentsOfFile: String(raw.dropFirst()))) ?? "" }
 guard let spec = try? JSONDecoder().decode(Spec.self, from: Data(raw.utf8)) else {
@@ -452,9 +500,9 @@ let mode = spec.mode ?? "present"
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 installEditMenu()
-if let a = ProcessInfo.processInfo.environment["WB_CARD_APPEARANCE"] {
-    app.appearance = NSAppearance(named: a == "dark" ? .darkAqua : .aqua)
-}
+// Wispr's cards are light (the Flow app's default look), whatever the system appearance.
+app.appearance = NSAppearance(named: .aqua)
+WisprTheme.registerFonts(in: pluginRoot())
 
 func place(_ size: NSSize, _ at: String?) -> NSPoint {
     let mouse = NSEvent.mouseLocation
@@ -483,7 +531,7 @@ func makePanel<V: View>(_ view: V, at: String?, key: Bool) -> (NSPanel, NSHostin
     panel.contentView = host
     panel.isOpaque = false
     panel.backgroundColor = .clear
-    panel.hasShadow = true
+    panel.hasShadow = false                    // the card draws its own Wispr shadow
     panel.level = .floating
     panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
     panel.isMovableByWindowBackground = true     // draggable card
@@ -507,10 +555,25 @@ case "notify":
 
 case "progress":
     guard let file = spec.file else { FileHandle.standardError.write(Data("progress needs file\n".utf8)); exit(2) }
-    struct P: Decodable { let text: String?; let title: String?; let done: Bool? }
+    // busy:false drops the spinner (nothing is loading); run:[absolute executable, args…] is started when the
+    // pill is clicked, with no shell; closable:true adds a × that dismisses the pill.
+    struct P: Decodable { let text: String?; let title: String?; let done: Bool?; let busy: Bool?; let run: [String]?; let closable: Bool? }
     func read() -> P? { (try? Data(contentsOf: URL(fileURLWithPath: file))).flatMap { try? JSONDecoder().decode(P.self, from: $0) } }
     let first = read()
-    let pm = PillModel(title: first?.title ?? spec.title, text: first?.text ?? spec.text ?? "Working…", busy: true)
+    let pm = PillModel(title: first?.title ?? spec.title, text: first?.text ?? spec.text ?? "Working…", busy: first?.busy ?? true)
+    var runArgv: [String]? = nil
+    func applyActions(_ p: P?) {
+        if let r = p?.run, let exe = r.first, exe.hasPrefix("/"), FileManager.default.isExecutableFile(atPath: exe) { runArgv = r } else { runArgv = nil }
+        pm.tappable = runArgv != nil
+        pm.onTap = runArgv == nil ? nil : {
+            guard let r = runArgv else { return }
+            let t = Process(); t.executableURL = URL(fileURLWithPath: r[0]); t.arguments = Array(r.dropFirst())
+            t.standardOutput = FileHandle.nullDevice; t.standardError = FileHandle.nullDevice
+            try? t.run()
+        }
+        pm.onClose = (p?.closable ?? false) ? { () -> Void in emit(["done": true, "reason": "dismissed"]) } : nil
+    }
+    applyActions(first)
     let (panel, host) = makePanel(PillView(m: pm), at: spec.at ?? "topright", key: false)
     keep.append(panel)
     DispatchQueue.main.async { withAnimation(.easeOut(duration: 0.2)) { pm.shown = true } }
@@ -522,6 +585,8 @@ case "progress":
         }
         if let t = p.text, t != pm.text { pm.text = t; last = Date()
             host.layoutSubtreeIfNeeded(); panel.setContentSize(host.fittingSize) }
+        if let b = p.busy, b != pm.busy { pm.busy = b }
+        if (p.run ?? []) != (runArgv ?? []) || (p.closable ?? false) != (pm.onClose != nil) { applyActions(p) }
         if p.done == true {
             pm.busy = false
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { emit(["done": true]) }
@@ -531,16 +596,16 @@ case "progress":
 
 case "ask":
     let am = AskModel()
-    let (panel, _) = makePanel(AskView(m: am, title: spec.title ?? "Wispr Bridge · dictate a request",
-                                       placeholder: spec.placeholder ?? "Hold your Wispr key and say what you want…"),
+    let (panel, _) = makePanel(AskView(m: am, title: spec.title ?? "",
+                                       placeholder: spec.placeholder ?? "Say what you want Claude to do"),
                                at: spec.at ?? "center", key: true)
     keep.append(panel)
-    DispatchQueue.main.async { withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) { am.shown = true } }
+    DispatchQueue.main.async { withAnimation(WisprTheme.easeOut) { am.shown = true } }
     NSEvent.addLocalMonitorForEvents(matching: .keyDown) { ev in
         if ev.keyCode == 53 { emit(["cancelled": true, "reason": "esc"]) }
         return ev
     }
-    DispatchQueue.main.asyncAfter(deadline: .now() + (spec.timeout ?? 300)) { emit(["cancelled": true, "reason": "timeout"]) }
+    DispatchQueue.main.asyncAfter(deadline: launched + (spec.timeout ?? 300)) { emit(["cancelled": true, "reason": "timeout"]) }
 
 default:
     let model = Model(spec)
@@ -548,7 +613,7 @@ default:
     let (panel, _) = makePanel(PresentView(m: model), at: spec.at, key: spec.focus ?? true)
     thePanel = panel
     keep.append(panel)
-    DispatchQueue.main.async { withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) { model.shown = true } }
+    DispatchQueue.main.async { withAnimation(WisprTheme.easeOut) { model.shown = true } }
     NSEvent.addLocalMonitorForEvents(matching: .keyDown) { ev in
         let n = model.opts.count
         let cols = model.grid ? min(3, max(2, n)) : 1
@@ -567,8 +632,8 @@ default:
         }
         return ev
     }
-    DispatchQueue.main.asyncAfter(deadline: .now() + (spec.timeout ?? 540)) {
-        emit(["cancelled": true, "timeout": true])
+    DispatchQueue.main.asyncAfter(deadline: launched + (spec.timeout ?? 540)) {
+        emit(["cancelled": true, "timeout": true, "reason": "timeout"])
     }
 }
 

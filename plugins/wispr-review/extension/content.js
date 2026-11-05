@@ -1,6 +1,6 @@
-// Wispr Review (made for Wispr, unofficial) — the page UI.
+// Wispr Review — the page UI.
 // Voice mode: a small field follows the cursor and keeps keyboard focus, so Wispr Flow types into it. Point at
-// something, hold your Wispr key and talk: when the words land, the element under the cursor is locked, a crop,
+// something, hold fn and speak: when the words land, the element under the cursor is locked, a crop,
 // selector and URL are taken, and the note saves itself ~2s later (Enter saves now, Esc drops it, keep talking to
 // add more). Then point at the next thing. No clicking. Option tap locks/unlocks the element before you talk.
 // Pins mark every note on the page; Walk (← →) steps back through them with a pointer card.
@@ -85,7 +85,7 @@
     const g = c.getContext('2d');
     g.drawImage(img, r.x * k, r.y * k, r.w * k, r.h * k, 0, 0, c.width, c.height);
     // mark the element inside the crop
-    g.strokeStyle = '#7c5cff'; g.lineWidth = 3;
+    g.strokeStyle = '#ff6c4c'; g.lineWidth = 3;
     g.strokeRect((rect.left - r.x) * k * out, (rect.top - r.y) * k * out, rect.width * k * out, rect.height * k * out);
     for (const q of [0.75, 0.6, 0.45]) { const j = c.toDataURL('image/jpeg', q); if (j.length < 160_000) return j; }
     return null;
@@ -96,73 +96,87 @@
   host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647';
   const root = host.attachShadow({ mode: 'closed' }); // closed: page scripts can't read or fill the note field
   root.innerHTML = `<style>
-    :host{--a:#7c5cff;--bg:#16161d;--fg:#f4f4f8;--mut:#a3a3b5;--line:rgba(255,255,255,.12);font:13px/1.35 -apple-system,BlinkMacSystemFont,"Inter",system-ui,sans-serif;color:var(--fg)}
+    /* Wispr Flow app look (wispr-theme/wispr.css tokens): sand-50 card, 1px sand-600 border, 12px radius, Figtree */
+    :host{--ink:#1a1a1a;--bg:#fcfcfb;--fg:#1a1a1a;--fg2:#5b5b59;--mut:#71716e;--line:#eeebe3;--hover:#eeebe3;--mark:#ff6c4c;
+      --sans:"Wispr Figtree","Figtree",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;--ease:cubic-bezier(.05,.6,.4,.95);
+      --shadow:0 20px 25px -5px rgb(26 26 26 / .1),0 8px 10px -6px rgb(26 26 26 / .1);font:14px/1.4 var(--sans);color:var(--fg)}
     *{box-sizing:border-box}
-    .card,.dock,.toast,.walk{color:var(--fg);font:13px/1.35 -apple-system,BlinkMacSystemFont,"Inter",system-ui,sans-serif;text-align:left}
+    .card,.dock,.toast,.walk{color:var(--fg);font:14px/1.4 var(--sans);text-align:left}
     .walk:focus{outline:none}
-    .box{position:fixed;border:2px dashed var(--a);border-radius:6px;background:rgba(124,92,255,.07);pointer-events:none;transition:all .08s ease-out}
-    .box.lock{border-style:solid;background:rgba(124,92,255,.12);box-shadow:0 0 0 4px rgba(124,92,255,.18)}
+    .box{position:fixed;border:2px dashed var(--mark);border-radius:6px;background:rgb(255 108 76 / .06);pointer-events:none;transition:all .1s var(--ease)}
+    .box.lock{border-style:solid;background:rgb(255 108 76 / .04)}
     .box[hidden],.pin[hidden],[hidden]{display:none!important}
-    .tag{font:11px/1.3 -apple-system,system-ui,sans-serif;position:absolute;left:-2px;top:-22px;background:var(--a);color:#fff;font-size:11px;padding:2px 6px;border-radius:5px 5px 5px 0;white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis}
-    .card{position:fixed;width:300px;background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.35);pointer-events:auto;padding:10px 10px 8px}
-    .card.pill{width:auto;max-width:300px;padding:6px 10px;border-radius:999px;opacity:.92}
+    .tag{font:500 11.5px/1.3 var(--sans);position:absolute;left:16px;top:-24px;background:var(--ink);color:#fcfcfb;padding:3px 7px;border-radius:6px 6px 6px 0;white-space:nowrap;max-width:280px;overflow:hidden;text-overflow:ellipsis}
+    .card{position:fixed;width:324px;background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);pointer-events:auto;padding:12px 12px 10px}
+    .card.pill{width:auto;max-width:320px;padding:7px 12px;border-radius:9999px}
     .card.pill textarea{position:absolute;opacity:0;width:1px;height:1px;padding:0;border:0}
     .card.pill .hint{margin:0}
-    textarea{all:unset;display:block;width:100%;min-height:38px;max-height:140px;overflow:auto;white-space:pre-wrap;color:var(--fg);font:14px/1.4 inherit;font-family:inherit;caret-color:var(--a)}
-    .hint{color:var(--mut);font-size:11.5px;margin-top:6px;display:flex;gap:8px;align-items:center;white-space:nowrap}
-    .dot{width:8px;height:8px;border-radius:50%;background:var(--a);flex:none;animation:p 1.6s infinite}
+    .card.pill .bar{display:none}
+    textarea{all:unset;display:block;width:100%;min-height:38px;max-height:140px;overflow:auto;white-space:pre-wrap;color:var(--fg);font:14px/1.4 var(--sans);caret-color:var(--ink)}
+    .hint{color:var(--fg2);font:500 12.5px/1.3 var(--sans);margin-top:6px;display:flex;gap:7px;align-items:center;white-space:nowrap}
+    .dot{width:7px;height:7px;border-radius:50%;background:var(--mark);flex:none;animation:p 1.6s infinite}
     @keyframes p{50%{opacity:.35}}
-    .bar{height:3px;border-radius:2px;background:var(--line);margin-top:8px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:var(--a)}
+    .bar{height:3px;border-radius:2px;background:var(--line);margin-top:8px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:var(--ink)}
     .bar.run i{width:100%;transition:width linear}
-    .mk{display:inline-block;font-size:10px;letter-spacing:.02em;color:var(--mut);border:1px solid var(--line);border-radius:4px;padding:0 4px}
-    .pin{position:fixed;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:var(--a);color:#fff;font:600 11px/22px -apple-system,BlinkMacSystemFont,system-ui,sans-serif;text-align:center;pointer-events:auto;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35),0 0 0 2px #fff}
-    .pin.done{background:#3a3a46;color:#c9c9d6}
-    .pin.cur{transform:scale(1.25);box-shadow:0 0 0 2px #fff,0 0 0 7px rgba(124,92,255,.35)}
-    .dock{position:fixed;right:16px;bottom:16px;display:flex;align-items:center;gap:4px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:5px;pointer-events:auto;box-shadow:0 8px 30px rgba(0,0,0,.3)}
-    .dock b{font-weight:600;padding:0 6px 0 4px;display:flex;align-items:center;gap:6px}
-    .dock .by{font-size:10px;color:var(--mut);font-weight:400}
-    button{all:unset;cursor:pointer;color:var(--fg);padding:5px 8px;border-radius:7px;font-size:12px;white-space:nowrap}
-    button:hover{background:rgba(255,255,255,.08)} button.on{background:var(--a);color:#fff}
-    button:focus-visible{outline:2px solid var(--a)}
+    .mk{display:inline-flex;align-items:center;height:20px;font:400 12px/1 var(--sans);color:#30302f;background:#fff;border:1px solid var(--line);border-radius:4px;padding:0 7px;box-shadow:0 2px 0 0 #d3ced6;vertical-align:1px}
+    .toast .mk{height:18px;padding:0 6px;margin:0 1px}
+    .cnt{display:inline-block;min-width:18px;margin-left:5px;padding:1px 5px;border-radius:6px;background:var(--hover);color:var(--fg2);font:500 11.5px/16px var(--sans);text-align:center}
+    .cnt:empty,.cnt[data-n="0"]{display:none}
+    button svg{width:14px;height:14px;display:block;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round}
+    button.x{padding:7px}
+    .pin{position:fixed;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:var(--ink);color:#fcfcfb;font:600 12px/24px var(--sans);text-align:center;pointer-events:auto;cursor:pointer;box-shadow:0 2px 8px rgb(26 26 26 / .3),0 0 0 2px #fff;transition:transform .15s var(--ease)}
+    .pin.done{background:var(--hover);color:var(--fg2)}
+    .pin.cur{transform:scale(1.2);box-shadow:0 0 0 2px #fff,0 0 0 6px rgb(255 108 76 / .45)}
+    .dock{position:fixed;right:16px;bottom:16px;display:flex;align-items:center;gap:2px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:6px;pointer-events:auto;box-shadow:var(--shadow)}
+    .dock b{font:700 14px/1 var(--sans);letter-spacing:-.02em;padding:0 8px 0 6px;display:flex;align-items:center;gap:6px;white-space:nowrap}
+    button{all:unset;cursor:pointer;color:var(--fg);padding:6px 10px;border-radius:8px;font:500 13px/1.2 var(--sans);white-space:nowrap;transition:background .15s var(--ease)}
+    button:hover{background:var(--hover)} button.on{background:var(--hover)}
+    button.primary{background:var(--ink);color:#fcfcfb} button.primary:hover{background:#464544}
+    button:focus-visible{outline:2px solid var(--ink);outline-offset:1px}
     .walk{width:320px}
-    .walk .top{display:flex;justify-content:space-between;align-items:center;color:var(--mut);font-size:11.5px;margin-bottom:6px}
-    .walk p{margin:0 0 8px;font-size:14px;white-space:pre-wrap}
-    .walk img{display:block;max-width:100%;max-height:160px;border-radius:6px;margin:0 0 8px;border:1px solid var(--line)}
+    .walk .top{display:flex;justify-content:space-between;align-items:center;color:var(--mut);font-size:12.5px;margin-bottom:8px}
+    .walk p{margin:0 0 10px;font-size:14px;white-space:pre-wrap}
+    .walk img{display:block;max-width:100%;max-height:160px;border-radius:8px;margin:0 0 10px;border:1px solid var(--line)}
     .walk .row{display:flex;gap:4px;flex-wrap:wrap}
-    .walk .gone{color:#ffb86b;font-size:11.5px;margin:-4px 0 8px}
+    .walk .gone{color:#a6280b;font-size:12.5px;margin:-4px 0 8px}
     .arrow{position:fixed;width:0;height:0;pointer-events:none;border:9px solid transparent}
-    .toast{position:fixed;left:50%;bottom:70px;transform:translateX(-50%);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:7px 14px;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+    .toast{position:fixed;left:50%;bottom:76px;transform:translateX(-50%);background:var(--ink);color:#fcfcfb;border-radius:8px;padding:9px 16px;font-weight:500;opacity:0;transition:opacity .15s var(--ease);pointer-events:none;white-space:nowrap}
     .toast.on{opacity:1}
     .toast{max-width:calc(100vw - 24px);overflow:hidden;text-overflow:ellipsis}
     .walk{max-width:calc(100vw - 16px)}
     @media (max-width:520px){
       .dock{right:8px;left:8px;bottom:8px;justify-content:space-between;gap:0;max-width:calc(100vw - 16px)}
-      .dock .by,.dock .long{display:none}
-      .dock button{padding:5px 6px}
+      .dock .long{display:none}
+      .dock button{padding:6px 7px}
     }
   </style>
   <div class="pins"></div>
   <div class="box" hidden><span class="tag"></span></div>
   <div class="arrow" hidden></div>
   <div class="card pill" hidden>
-    <textarea spellcheck="false" aria-label="Review note (dictate with Wispr or type)"></textarea>
-    <div class="hint"><span class="dot"></span><span class="msg">Point and talk</span></div>
+    <textarea spellcheck="false" aria-label="Review note (hold fn and speak, or type)"></textarea>
+    <div class="hint"><span class="dot"></span><span class="msg">Point, then hold fn and speak</span></div>
     <div class="bar"><i></i></div>
   </div>
   <div class="card walk" hidden></div>
   <div class="dock">
-    <b>Review <span class="by">made for Wispr</span></b>
+    <b>Wispr Review</b>
     <button data-a="mode" title="Voice mode on/off (Option+Shift+R)">Voice</button>
-    <button data-a="walk" title="Walk through this page's notes (← →)">Walk <span class="n">0</span></button>
-    <button data-a="claude" title="Copy a prompt plus the notes JSON for Claude">Send<span class="long"> to Claude</span></button>
-    <button data-a="md" title="Download this site's notes as markdown">.md</button>
-    <button data-a="off" title="Turn review off for this site">✕</button>
+    <button data-a="walk" title="Walk through this page's notes (← →)">Notes<span class="n cnt" data-n="0">0</span></button>
+    <button data-a="claude" class="primary" title="Copy a prompt plus the notes for Claude">Send<span class="long"> to Claude</span></button>
+    <button data-a="md" title="Download this site's notes as a Markdown file">Download</button>
+    <button data-a="off" class="x" title="Turn review off for this site" aria-label="Turn review off"><svg viewBox="0 0 14 14"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
   </div>
   <div class="toast"></div>`;
   const $ = (s) => root.querySelector(s);
   const box = $('.box'), tag = $('.tag'), card = $('.card.pill'), ta = $('textarea'), msg = $('.msg'), barEl = $('.bar'), walkEl = $('.walk'),
     pinsEl = $('.pins'), arrow = $('.arrow'), dock = $('.dock'), toastEl = $('.toast'), modeBtn = $('[data-a=mode]'), walkBtn = $('[data-a=walk]');
   document.documentElement.append(host);
+  // Figtree (SIL OFL) ships in the extension; registered under its own name so the page's fonts are untouched.
+  try {
+    const ff = new FontFace('Wispr Figtree', `url(${chrome.runtime.getURL('fonts/Figtree.ttf')})`, { weight: '300 900' });
+    ff.load().then((f) => document.fonts.add(f)).catch(() => {});
+  } catch {}
 
   let notes = [], mode = false, hoverEl = null, locked = null, mouse = { x: innerWidth / 2, y: innerHeight / 2 }, saveT = 0, dictated = false, walkI = -1, alive = true;
   const here = () => notes.filter((n) => n.page === PAGE).sort((a, b) => a.n - b.n);
@@ -170,7 +184,7 @@
 
   const ac = new AbortController(), sig = { signal: ac.signal };
   let toastT = 0;
-  const toast = (t, ms = 2200) => { toastEl.textContent = t; toastEl.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('on'), ms); };
+  const toast = (t, ms = 2200, html = false) => { if (html) toastEl.innerHTML = t; else toastEl.textContent = t; toastEl.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('on'), ms); };
   const mine = (n) => n === host || host.contains(n);
   const under = (x, y) => document.elementsFromPoint(x, y).find((n) => !mine(n) && n !== document.documentElement && n !== document.body) || null;
   const editable = (el) => el && el !== host && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
@@ -197,9 +211,9 @@
   function setHint() {
     const has = ta.value.trim().length > 0;
     card.classList.toggle('pill', !has && !locked);
-    if (!has) msg.textContent = locked ? 'Locked · hold your Wispr key and talk · Option to unlock' : 'Point at something · hold your Wispr key and talk';
-    else if (dictated) msg.innerHTML = 'Saving… <span class="mk">Enter</span> now <span class="mk">Esc</span> drop · keep talking to add';
-    else msg.innerHTML = '<span class="mk">Enter</span> save <span class="mk">Shift+Enter</span> new line <span class="mk">Esc</span> drop';
+    if (!has) msg.innerHTML = locked ? 'Locked. Hold <span class="mk">fn</span> and speak, or tap <span class="mk">option</span> to unlock' : 'Point at something, then hold <span class="mk">fn</span> and speak';
+    else if (dictated) msg.innerHTML = 'Saving… <span class="mk">return</span> to save now <span class="mk">esc</span> to drop';
+    else msg.innerHTML = '<span class="mk">return</span> to save <span class="mk">shift return</span> for a new line <span class="mk">esc</span> to drop';
     placeCard();
   }
   const grabFocus = () => { if (alive && mode && walkI < 0 && root.activeElement !== ta && !editable(document.activeElement)) ta.focus({ preventScroll: true }); };
@@ -209,7 +223,7 @@
     if (remember) chrome.storage.local.get('voice').then((o) => { const v = typeof o.voice === 'object' && o.voice ? o.voice : {}; v[SITE] = on; chrome.storage.local.set({ voice: v }); }).catch(() => {});
     modeBtn.classList.toggle('on', on);
     card.hidden = !on;
-    if (on) { stopWalk(); hoverEl = under(mouse.x, mouse.y); outline(hoverEl); setHint(); grabFocus(); toast('Voice review on · point, hold your Wispr key, talk'); }
+    if (on) { stopWalk(); hoverEl = under(mouse.x, mouse.y); outline(hoverEl); setHint(); grabFocus(); toast('Voice review is on. Point, hold <span class="mk">fn</span>, and speak.', 2600, true); }
     else { clearDraft(); outline(null); ta.blur(); }
   }
   function clearDraft() { ta.value = ''; dictated = false; locked = null; clearTimeout(saveT); barEl.classList.remove('run'); if (mode) { outline(hoverEl); setHint(); } }
@@ -238,7 +252,7 @@
     };
     ta.value = ''; dictated = false; locked = null; barEl.classList.remove('run');
     if (mode && walkI < 0) { hoverEl = under(mouse.x, mouse.y); outline(hoverEl); setHint(); }
-    queue = queue.then(() => persist(snap)).catch(() => toast('Could not save that note'));
+    queue = queue.then(() => persist(snap)).catch(() => toast('Could not save that note. Try again.'));
     return queue;
   }
   async function persist({ text, el, via, url, title, r, sx, sy, viewport }) {
@@ -260,7 +274,7 @@
     const s = await bg({ t: 'sink', path: '/notes', method: 'POST', body: n });
     if (s?.ok && s.body?.shot_path) { n.shot_path = s.body.shot_path; await store.set(notes); }
     if (!alive) return;
-    toast(`Note ${n.n} pinned${crop ? '' : ' (no crop)'}${s?.ok ? ' · saved to ~/.wispr-review' : ''}`);
+    toast(`Note ${n.n} saved${crop ? '' : ', without a screenshot'}`);
     renderPins();
   }
 
@@ -309,7 +323,7 @@
   }
   function renderPins() {
     const list = here();
-    walkBtn.querySelector('.n').textContent = list.length;
+    const cnt = walkBtn.querySelector('.n'); cnt.textContent = list.length; cnt.dataset.n = list.length;
     pinsEl.replaceChildren(...list.map((n, i) => {
       const p = document.createElement('div');
       p.className = 'pin' + (n.status === 'done' ? ' done' : '');
@@ -347,7 +361,7 @@
     if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' }); else scrollTo({ top: n.rect.y - innerHeight / 3, behavior: 'smooth' });
     walkEl.innerHTML = '';
     const top = document.createElement('div'); top.className = 'top';
-    top.innerHTML = `<span>Note ${n.n} · ${walkI + 1} of ${list.length}${n.status === 'done' ? ' · done' : ''}</span><span><span class="mk">←</span> <span class="mk">→</span> <span class="mk">Esc</span></span>`;
+    top.innerHTML = `<span>Note ${n.n} · ${walkI + 1} of ${list.length}${n.status === 'done' ? ' · done' : ''}</span><span><span class="mk">←</span> <span class="mk">→</span> <span class="mk">esc</span></span>`;
     const p = document.createElement('p'); p.textContent = n.text;
     walkEl.append(top, p);
     if (!el) { const g = document.createElement('div'); g.className = 'gone'; g.textContent = 'Element not found any more; showing where it was.'; walkEl.append(g); }
@@ -378,8 +392,8 @@
     Object.assign(walkEl.style, { left: x + 'px', top: y + 'px' });
     const ax = Math.min(Math.max(x + 14, r.left + Math.min(r.width / 2, 40)), x + w - 24);
     Object.assign(arrow.style, below
-      ? { left: ax + 'px', top: y - 18 + 'px', borderBottomColor: '#16161d', borderTopColor: 'transparent' }
-      : { left: ax + 'px', top: y + h + 'px', borderTopColor: '#16161d', borderBottomColor: 'transparent' });
+      ? { left: ax + 'px', top: y - 18 + 'px', borderBottomColor: '#fcfcfb', borderTopColor: 'transparent' }
+      : { left: ax + 'px', top: y + h + 'px', borderTopColor: '#fcfcfb', borderBottomColor: 'transparent' });
   }
   walkEl.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowRight') { e.preventDefault(); startWalk(walkI + 1); }
@@ -425,7 +439,7 @@
       const s = await bg({ t: 'sink', path: '/health' });
       if (s?.ok) for (const n of list) if (!n.shot_path) { const r = await bg({ t: 'sink', path: '/notes', method: 'POST', body: n }); if (r?.ok) n.shot_path = r.body.shot_path; }
       const ok = await copy(claudePrompt(list, !!s?.ok));
-      toast(ok ? `Copied ${list.length} notes for Claude · paste into Claude Code` : 'Copy failed');
+      toast(ok ? `Copied ${list.length} ${list.length === 1 ? 'note' : 'notes'}. Paste into Claude Code.` : 'Could not copy. Try again.');
     } else if (a === 'md') {
       const all = siteNotes(); if (!all.length) return toast('No notes on this site');
       download(`review-${SITE}-${new Date().toISOString().slice(0, 10)}.md`, markdown(all), 'text/markdown');

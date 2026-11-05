@@ -1,8 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "Wispr Review (made for Wispr)",
+  "name": "Wispr Review",
   "version": "0.1.1",
-  "description": "Review any website by voice: point, hold your Wispr key and talk. Each note pins to the element under the cursor with a crop, selector and URL. Unofficial; not affiliated with Wispr.",
+  "description": "Review any website by voice. Point, hold fn, and speak. Each note pins to the element under your cursor with a crop, selector, and URL.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
   "permissions": [
     "scripting",
     "storage",
@@ -17,7 +23,12 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "Wispr Review: turn review on or off for this site (Option+Shift+R)"
+    "default_title": "Wispr Review: turn review on or off for this site (Option+Shift+R)",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png"
+    }
   },
   "commands": {
     "toggle-review": {
@@ -28,5 +39,15 @@
       "description": "Turn voice review on or off on this site"
     }
   },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "fonts/Figtree.ttf"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxQmBNg6bqIhvyuF37n957fayAokIo/0v2AIXx2hNmvGIiB3kvetdS3fx+ONY4Qc9rWjELIE2a/XWx9IE9v9fD+GmWgxpYdwk01fQ6AKpKaR09293yw4HjscuFWj7MoRKbYs3uFBfVIFQH5dt9DB/xRgAV71L7N0BBfWV94Z5UtCXdq9rzeSAQeXgHxDPqxZ7WJn1iN7ZzCDgeQrYnX5KD2+jlbm5008ieMFSqt4mENI+dtc/KrgfmGPM5XtiKBHBjt7G2vaw/Lw35KOCYXjoFmpZEyDu0YA2enVp5mJt5+a1XL005RR4C2fF0xgmUBaC17BIxNZb8urWPfDd/ANpQwIDAQAB"
 }

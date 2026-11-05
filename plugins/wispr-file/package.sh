@@ -12,6 +12,8 @@ cp -R .claude-plugin hooks bin lib package.json README.md tests "$STAGE/"
 mkdir -p "$STAGE/helper"; cp helper/wf-clip helper/wf-clip.swift "$STAGE/helper/"
 cp "$BRIDGE/lib/bridge.mjs" "$STAGE/vendor/wispr-bridge/lib/"
 cp "$BRIDGE/helper/wb-card" "$STAGE/vendor/wispr-bridge/helper/"
+# The card draws in Figtree / EB Garamond from fonts/ beside helper/ (SIL OFL, licences included).
+[ -d "$BRIDGE/fonts" ] && cp -R "$BRIDGE/fonts" "$STAGE/vendor/wispr-bridge/fonts"
 cp "$BRIDGE/bin/cli.mjs" "$BRIDGE/bin/wispr-bridge" "$STAGE/vendor/wispr-bridge/bin/" 2>/dev/null || true
 [ -f "$BRIDGE/package.json" ] && cp "$BRIDGE/package.json" "$STAGE/vendor/wispr-bridge/"
 mkdir -p dist; rm -f dist/wispr-file.zip

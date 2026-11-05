@@ -1,13 +1,11 @@
 # Wispr for Builders · Pack 1
 
-**Wispr is for typing, and typing is for everything.** These are Claude Code mods made for
-[Wispr Flow](https://wisprflow.ai) users: you say what you want, and your Mac does it. Seven mods,
-one install, all running on your Mac.
+**Wispr is for typing, and typing is for everything.** Wispr for Builders is seven Claude Code
+mods for [Wispr Flow](https://wisprflow.ai): you say what you want, and your Mac does it. One
+install, all running on your Mac. By [Sameep Rehlan](https://sameep.ai).
 
-> Made for Wispr, unofficial. Built by [Sameep Rehlan](https://sameep.ai); not made, endorsed or
-> supported by Wispr. No Wispr logo, no Wispr account access. The mods don't open your microphone:
-> they read what Wispr Flow types into a focused field. The one exception is Wispr Video's recorder,
-> which uses the mic while you record.
+The mods don't open your microphone: they read what Wispr Flow types into a focused field. The one
+exception is Wispr Video's recorder, which uses the mic while you record.
 
 ## Install the whole pack
 
@@ -30,7 +28,7 @@ Or add it as a Claude Code plugin marketplace and pick mods one at a time:
 /plugin install wispr-file@wispr-for-builders
 ```
 
-Needs macOS 13+, Claude Code, Node 18+ and Wispr Flow. wispr-wish and wispr-video also use
+Needs macOS 13+, Claude Code, Node 18+ and Wispr Flow. Wispr Wish and Wispr Video also use
 `ffmpeg` and `whisper-cpp` (`brew install ffmpeg whisper-cpp`).
 
 ---
@@ -45,7 +43,7 @@ Spotlight searches your Mac, results come back as a numbered card of thumbnails,
 "two". It pastes the file into the app you were in, or reveals, opens or copies it. File contents
 never leave your Mac.
 
-![A numbered card of three image tiles, the second highlighted, with a text field that says Say two](assets/card.jpg)
+![A Wispr Bridge card with three numbered image tiles, the second selected, and a field that says Say two](assets/card.jpg)
 
 ```text
 /plugin install wispr-file@wispr-for-builders
@@ -74,7 +72,7 @@ A Chrome extension pins each dictated note to the element under your cursor, wit
 selector and the URL. Notes go to a local inbox, and Claude reads them with `/wispr-review` and
 fixes them one by one.
 
-![A web page with a pinned note on the price that says Price should say per seat, and a Review dock in the corner](assets/review.jpg)
+![A web page in review mode: the hovered section outlined, a note being dictated, and the Wispr Review dock in the corner](assets/review.jpg)
 
 ```text
 /plugin install wispr-review@wispr-for-builders
@@ -150,4 +148,4 @@ contents are never sent. Each mod's README in `plugins/` says exactly what it re
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE). The fonts are under the SIL Open Font License.

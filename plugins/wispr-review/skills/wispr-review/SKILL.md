@@ -3,7 +3,7 @@ name: wispr-review
 description: Act on website review notes left with the Wispr Review Chrome extension (voice notes pinned to elements, with selector, URL and a screenshot crop). Use when the user pastes "I reviewed <site> by voice and left N notes", says "check my review notes", "fix the review notes", "/wispr-review", or asks to install Wispr Review.
 ---
 
-# Wispr Review (made for Wispr, unofficial)
+# Wispr Review
 
 The user points at things on a website, holds their Wispr key and talks; each note is pinned to the element
 under the cursor. Notes live in Chrome and, when the local inbox is running, in `~/.wispr-review/`.

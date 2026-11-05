@@ -1,4 +1,4 @@
-// wf-clip — tiny local helper for wispr-file (made for Wispr, unofficial). No network, no microphone.
+// wf-clip — tiny local helper for Wispr File. No network, no microphone.
 //   wf-clip copy <file>...            put the files on the clipboard as files (plus image data for images)
 //   wf-clip icon <file> <out.png>...  write each file's Finder icon as a 256px PNG
 //   wf-clip paste                     press Cmd-V in the frontmost app (needs Accessibility for this binary)

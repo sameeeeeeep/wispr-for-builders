@@ -1,8 +1,8 @@
-# Wispr Review (made for Wispr)
+# Wispr Review
 
 Review any website by voice. Point at something, hold your Wispr key and talk: the note pins itself to the element
 under the cursor, with a screenshot crop, a selector and the URL. Point at the next thing and talk again. No clicking.
-Then hand all of it to Claude in one paste. Unofficial; not affiliated with Wispr.
+Then hand all of it to Claude in one paste.
 
 Pack 1 of "Wispr for Builders", next to Guru and Wispr Video. It reuses portfolio/build/review/extension (per-site
 on/off, selector builder, screen crop) and plugs into wispr-bridge for quiet toasts.

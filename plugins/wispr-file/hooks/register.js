@@ -1,4 +1,4 @@
-// wispr-file — made for Wispr (unofficial). Find any file by voice. See ../README.md.
+// Wispr File — find any file by voice. See ../README.md.
 // On session start: link ~/.wispr-file/bin/wispr-file, register it as the wispr-bridge handler for
 // file.find (so "find my passport photo" dictated into `wispr-bridge ask` lands here), and pre-render
 // thumbnails for recent files in the background (at most every 6 hours).

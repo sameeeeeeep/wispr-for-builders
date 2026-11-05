@@ -1,14 +1,14 @@
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Split the bill</title><style>/*BASE*/
-.big{font-size:54px;font-weight:300;font-variant-numeric:tabular-nums;text-align:center;margin:4px 0 0}
-.sub{text-align:center;color:var(--mute);font-size:13px;margin-top:-6px}
+.big{font-size:60px;line-height:1;text-align:center;margin:6px 0 0}
+.sub{text-align:center;color:var(--mute);font-size:13px;margin-top:-4px}
 .tips{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}.tips button{padding:7px 0;font-size:14px}.tips button.on{background:var(--acc);color:var(--accfg);border-color:transparent}
 </style></head><body>
 <main><h1>Split the bill</h1>
 <div class="row"><div><label for="amt">Bill</label><input id="amt" inputmode="decimal" autofocus></div><div><label for="ppl">People</label><input id="ppl" inputmode="numeric"></div></div>
 <div><label>Tip</label><div class="tips" id="tips"></div></div>
-<div class="big" id="each">0</div><div class="sub" id="sub">each</div></main>
-<footer><span>made for Wispr</span><span id="cur"></span></footer>
+<div class="big num" id="each">0</div><div class="sub" id="sub">each</div></main>
+<footer><span>Wispr Wish</span><span id="cur"></span></footer>
 <script>
 const P=/*PARAMS*/{amount:0,people:2,tip:0,currency:""};
 try{window.resizeTo(380,460)}catch(e){}
@@ -17,7 +17,7 @@ amt.value=P.amount||"";ppl.value=P.people||2;let tip=P.tip||0;
 const sym=P.currency||"";cur.textContent=sym?("in "+sym):"";
 function calc(){const a=parseFloat(String(amt.value).replace(/[^\d.]/g,""))||0,n=Math.max(1,parseInt(ppl.value)||1),tot=a*(1+tip/100),e=tot/n;
  each.textContent=sym+(Math.round(e*100)/100).toLocaleString(undefined,{minimumFractionDigits:e%1?2:0,maximumFractionDigits:2});
- sub.textContent="each, "+n+" people · total "+sym+(Math.round(tot*100)/100).toLocaleString()+(tip?" with "+tip+"% tip":"");
+ sub.textContent="each, "+n+" people · total "+sym+(Math.round(tot*100)/100).toLocaleString(undefined,{minimumFractionDigits:tot%1?2:0,maximumFractionDigits:2})+(tip?" with "+tip+"% tip":"");
  [...tips.children].forEach(b=>b.classList.toggle("on",+b.dataset.t===tip))}
 amt.oninput=ppl.oninput=calc;calc();
 </script></body></html>

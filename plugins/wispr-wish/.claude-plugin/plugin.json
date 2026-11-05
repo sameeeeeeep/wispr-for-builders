@@ -1,9 +1,21 @@
 {
   "name": "wispr-wish",
   "version": "0.1.0",
-  "displayName": "Wispr Wish (made for Wispr)",
-  "description": "Say it with Wispr Flow and it happens: \"make this a PDF\", \"compress this video for WhatsApp\", \"turn these PNGs into WebP\", \"transcribe this audio\", \"a timer for 25 min\", \"split this bill\", \"a QR for this link\". Acts on your Finder selection; results come back as a small numbered card. Unofficial; not affiliated with Wispr.",
-  "author": { "name": "sameeeeeeep" },
+  "displayName": "Wispr Wish",
+  "description": "Say it with Wispr Flow and it happens: \"make this a PDF\", \"compress this video for WhatsApp\", \"turn these PNGs into WebP\", \"transcribe this audio\", \"a timer for 25 min\", \"split this bill\", \"a QR for this link\". Acts on your Finder selection; results come back as a small numbered card.",
+  "author": {
+    "name": "Sameep Rehlan",
+    "url": "https://sameep.ai"
+  },
   "license": "MIT",
-  "keywords": ["wispr", "voice", "convert", "ffmpeg", "pdf", "mini apps", "macos", "mod"]
+  "keywords": [
+    "wispr",
+    "voice",
+    "convert",
+    "ffmpeg",
+    "pdf",
+    "mini apps",
+    "macos",
+    "mod"
+  ]
 }

@@ -4,15 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Wispr Video</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23F0D7FF' stroke='%231A1A1A' stroke-width='2.5'/%3E%3Cpath d='M12 9.5v13l11-6.5z' fill='%231A1A1A'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231A1A1A'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='Figtree,Helvetica,Arial,sans-serif' font-weight='700' font-size='17' fill='%23FCFCFB'%3EV%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="/app/wispr.css">
 <link rel="stylesheet" href="/app/app.css">
 </head>
 <body>
 <header class="top">
-  <div class="brand">
-    <span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32"><rect x="1.25" y="1.25" width="29.5" height="29.5" rx="9" fill="var(--lilac)" stroke="var(--ink)" stroke-width="2.5"/><path d="M12 9.5v13l11-6.5z" fill="var(--ink)"/></svg></span>
-    <span class="name">Wispr <em>Video</em></span>
-  </div>
+  <div class="brand"><span class="name">Wispr Video</span></div>
   <div class="proj">
     <button class="ghost icon" id="btnProjects" title="Projects" aria-label="Projects"><svg viewBox="0 0 20 20"><path d="M3 5.5h14M3 10h14M3 14.5h14"/></svg></button>
     <input id="title" class="title" spellcheck="false" aria-label="Video title">
@@ -90,8 +88,8 @@
       </div>
     </div>
     <div class="ask" id="ask">
-      <button class="mic" id="btnMic" title="Dictate (or hold your Wispr key)" aria-label="Dictate an edit"><svg viewBox="0 0 20 20"><rect x="7" y="2.5" width="6" height="10" rx="3"/><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5"/></svg></button>
-      <input id="askInput" placeholder="Say an edit: “cut the pauses”, “make the title bigger”" autocomplete="off">
+      <button class="mic" id="btnMic" title="Dictate (or hold fn and speak)" aria-label="Dictate an edit"><svg viewBox="0 0 20 20"><rect x="7" y="2.5" width="6" height="10" rx="3"/><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5"/></svg></button>
+      <input id="askInput" placeholder="Hold fn and say an edit, like “cut the pauses”" autocomplete="off">
       <button class="send" id="btnAsk" aria-label="Send to Claude"><svg viewBox="0 0 20 20"><path d="M4 10h11M11 5.5 15.5 10 11 14.5"/></svg></button>
     </div>
     <div class="chips" id="chips"></div>
@@ -101,7 +99,7 @@
     <div class="ihead"><b id="insTitle">Inspector</b><span id="insSub"></span></div>
     <div id="insBody" class="ibody"><p class="hint">Select a clip on the timeline to change it.</p></div>
     <div class="ihead log"><b>Claude</b><span id="claudeState"></span></div>
-    <div class="claudelog" id="claudeLog"><p class="hint">Edits you ask for show up here. Claude Code can also edit this project directly with the <code>wispr-video</code> tools.</p></div>
+    <div class="claudelog" id="claudeLog"><p class="hint">Edits you ask for show up here. Claude Code can edit this video too.</p></div>
   </aside>
 
   <section class="timeline" id="timeline">
@@ -134,10 +132,10 @@
     <div class="pnext" id="pNext"></div>
     <div class="hearing" id="pHearing" hidden><i class="lvl"><b id="pLvl"></b></i><span id="pHeard">Waiting for your first words…</span></div>
     <div class="wfall" id="pFall" hidden>
-      <p><b>Voice-follow can’t hear the mic while it records.</b> Hold your Wispr key and read the line: the words you dictate move the prompt. Or press Space.</p>
+      <p><b>Wispr Video can’t hear the mic while it records.</b> Hold <kbd>fn</kbd> and read the line. The words you dictate move the prompt, or press Space.</p>
       <input id="pWispr" placeholder="Wispr dictation lands here" autocomplete="off" spellcheck="false">
     </div>
-    <div class="pkeys"><kbd>space</kbd> / <kbd>→</kbd> next line · <kbd>←</kbd> back · <kbd>R</kbd> record / stop · it follows your voice and never moves on a timer</div>
+    <div class="pkeys"><kbd>space</kbd> or <kbd>→</kbd> next line · <kbd>←</kbd> back · <kbd>R</kbd> record or stop. The prompt follows your voice and never moves on a timer.</div>
   </section>
   <aside class="rside">
     <div class="camwrap"><video id="rCam" muted playsinline></video><button class="camon" id="camOn">Turn on camera</button><span class="recdot" id="recDot"></span><span class="clock" id="rClock">0:00</span></div>

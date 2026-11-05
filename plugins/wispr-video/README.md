@@ -1,7 +1,6 @@
 # Wispr Video
 
-A voice-first video editor that runs on your Mac as a Claude Code mod. Made for Wispr users; not a Wispr
-product and not affiliated with Wispr.
+A voice-first video editor that runs on your Mac as a Claude Code mod.
 
 - **Record**: camera with a teleprompter that follows your voice (it moves on after a line's last word, or on
   Space / →, never on a timer). Screen capture is its own track: record it at the same time or later.

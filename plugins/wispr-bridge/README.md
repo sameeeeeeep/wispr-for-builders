@@ -1,16 +1,16 @@
-# Wispr Bridge (made for Wispr)
+# Wispr Bridge
 
-The small harness every "made for Wispr" Claude Code mod runs on. Unofficial: not made by or
-affiliated with Wispr.
+The small harness every Wispr for Builders Claude Code mod runs on.
 
 You hold your Wispr key and say what you want. Wispr types it into the bridge's floating field, the
 bridge works out what you meant (find a file, run a wish, convert something, leave a review note,
 guide you, or just answer), and hands it to the mod that does that. When a mod needs you to choose, a
-small card shows numbered options, as rows or as image thumbnails. Say "two", press 2, or click.
+small card shows numbered options, as rows or as image thumbnails: click one or press its number, and
+add a note in your own words if you like ("1 but make it shorter").
 
 The bridge never opens the microphone, so it never fights Wispr or any other app for it.
 
-![Card with three numbered image options](assets/card-tiles-dark.png)
+![Wispr Bridge card with three numbered image options](assets/card-tiles.png)
 
 ## Try it for one session
 

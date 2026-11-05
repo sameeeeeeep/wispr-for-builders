@@ -1,9 +1,20 @@
 {
   "name": "wispr-pm",
   "version": "0.1.0",
-  "displayName": "Wispr PM (made for Wispr)",
-  "description": "Run your task boards by voice. Dictate with Wispr Flow: \"park this for the portfolio\", \"what's next on nailinit\", \"split this into tasks\", \"start a thread for the hero fix\", \"what's waiting on me\". One board per project (your Switchboard board where it exists), Claude Code threads per card, decisions as small numbered cards, waiting-on-you at the notch. Unofficial; not affiliated with Wispr.",
-  "author": { "name": "sameeeeeeep" },
+  "displayName": "Wispr PM",
+  "description": "Run your task boards by voice. Dictate with Wispr Flow: \"park this for the portfolio\", \"what's next on nailinit\", \"split this into tasks\", \"start a thread for the hero fix\", \"what's waiting on me\". One board per project (your Switchboard board where it exists), Claude Code threads per card, decisions as small numbered cards, waiting-on-you at the notch.",
+  "author": {
+    "name": "Sameep Rehlan",
+    "url": "https://sameep.ai"
+  },
   "license": "MIT",
-  "keywords": ["wispr", "voice", "tasks", "kanban", "project-management", "macos", "mod"]
+  "keywords": [
+    "wispr",
+    "voice",
+    "tasks",
+    "kanban",
+    "project-management",
+    "macos",
+    "mod"
+  ]
 }

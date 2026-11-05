@@ -1,9 +1,19 @@
 {
   "name": "wispr-bridge",
   "version": "0.1.0",
-  "displayName": "Wispr Bridge (made for Wispr)",
-  "description": "The ultralight harness behind the made-for-Wispr mods: dictate a request with Wispr Flow, it is routed to the right mod, and choices come back as a small numbered card you answer by voice, keys or click. Unofficial; not affiliated with Wispr.",
-  "author": { "name": "sameeeeeeep" },
+  "displayName": "Wispr Bridge",
+  "description": "The ultralight harness behind the Wispr for Builders mods: dictate a request with Wispr Flow, it is routed to the right mod, and choices come back as a small numbered card you answer by voice, keys or click.",
+  "author": {
+    "name": "Sameep Rehlan",
+    "url": "https://sameep.ai"
+  },
   "license": "MIT",
-  "keywords": ["wispr", "voice", "dictation", "macos", "mod", "router"]
+  "keywords": [
+    "wispr",
+    "voice",
+    "dictation",
+    "macos",
+    "mod",
+    "router"
+  ]
 }

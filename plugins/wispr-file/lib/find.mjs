@@ -1,4 +1,4 @@
-// wispr-file — find any file by voice. Made for Wispr (unofficial). See ../README.md.
+// Wispr File — find any file by voice. See ../README.md.
 //
 // Fast path (no model): parse the dictated request locally -> parallel Spotlight queries (mdfind)
 // -> rank by name/content/kind/date/location -> thumbnails -> bridge present() card -> act.
@@ -422,7 +422,7 @@ export function cardSpec(plan, items, action, front) {
   const verb = (action === 'paste' || action === 'attach') ? `${VERB[action]} ${target || 'the front app'}` : VERB[action]
   return {
     title: what ? `Found: ${what}` : 'Which file?',
-    subtitle: `Pick one to ${verb}. Say "two", or "two, reveal it".`,
+    subtitle: `Click one or press its number to ${verb}. Or add what to do: "2, reveal it".`,
     options: items.map((it) => ({ label: it.name, detail: detailOf(it), image: it.image })),
     recommended: 1,
     at: 'center',
@@ -622,7 +622,7 @@ export async function findFlow(text, { hint = {}, dryRun = false, smart = false,
     if (r.pick) { pickN = r.pick; if (r.action) plan.action = r.action; break }
     if (r.outOfRange) {
       if (asked >= 2) break
-      spec.subtitle = `There are only ${top.length}. Say a number from 1 to ${top.length}, or press Esc.`
+      spec.subtitle = `There are only ${top.length}. Press 1 to ${top.length}, or Esc.`
       continue
     }
     if (refined) return { ok: false, cancelled: true, reason: 'reply not understood', reply: res.text, plan, ms }

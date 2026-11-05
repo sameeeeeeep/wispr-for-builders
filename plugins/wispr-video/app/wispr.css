@@ -1,0 +1,224 @@
+/* wispr.css — the one Wispr token + component file for every Wispr surface on sameep.ai.
+   Values are Wispr Flow's own: read from the Flow desktop app's stylesheet (app.asar, Nov 2026)
+   and its home window, cross-checked against wisprflow.ai. No Wispr logos are used: every logo slot
+   is the product name set in Wispr's type (.w-lockup, .w-tile).
+   Fonts: Figtree, EB Garamond, Google Sans Code — the faces the Flow app ships, all SIL OFL via
+   Google Fonts. Load them with:
+   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Figtree:wght@400;500;600;700&family=Google+Sans+Code:wght@400;500&display=swap">
+*/
+:root {
+  /* palette (app) */
+  --sand-50: #fcfcfb; --sand-100: #faf9f7; --sand-200: #f8f7f3; --sand-300: #f7f6f2; --sand-400: #f6f5f1;
+  --sand-500: #f5f4f0; --sand-600: #eeebe3; --sand-700: #c5c0b3; --sand-800: #a39d8e; --sand-900: #736e62; --sand-950: #4d4a42;
+  --vast-50: #e9e8e1; --vast-100: #deddd7; --vast-200: #c8c8c2; --vast-300: #b3b2ad; --vast-400: #9d9c98; --vast-500: #878683;
+  --vast-600: #71716e; --vast-700: #5b5b59; --vast-800: #464544; --vast-875: #343432; --vast-900: #30302f; --vast-910: #2a2a29;
+  --vast-925: #202020; --vast-950: #1a1a1a;
+  --lumen: #ffffeb; --lumen-50: #fffffd; --lumen-500: #f7f7db; --lumen-600: #efefc9; --lumen-700: #e2e2ac; --lumen-800: #d3d388;
+  --fathom: #034f46; --fathom-50: #e2f5f2; --fathom-100: #ceedea; --fathom-300: #9fd9cf; --fathom-500: #68bdb0; --fathom-700: #369489; --fathom-800: #247872;
+  --flare: #ff6c4c; --flare-50: #fdf2f0; --flare-100: #fce4de; --flare-500: #d34528; --flare-600: #a6280b;
+  --green-50: #ecfdf5; --green-400: #34d399; --green-600: #059669;
+  --red-450: #ff5757; --red-600: #dc2626;
+  --pro: #ecd8fd; --pro-ink: #4b2a6b;        /* the "Pro" badge beside the Flow lockup */
+  --new: #efac5b; --new-ink: #1a1a1a;        /* the "New!" nav badge */
+  --pure-white: #fff; --pure-black: #000;
+
+  /* semantic (light, the app default) */
+  --w-bg: var(--sand-500);            /* app sidebar / page */
+  --w-surface: var(--sand-50);        /* main content panel */
+  --w-card: var(--pure-white);
+  --w-fg: var(--vast-950);
+  --w-fg-2: var(--vast-700);
+  --w-fg-3: var(--vast-600);
+  --w-border: var(--sand-600);
+  --w-hover: var(--sand-600);         /* selected nav row */
+  --w-primary: var(--vast-950); --w-on-primary: var(--sand-50);
+  --w-accent: var(--fathom); --w-on-accent: var(--lumen);
+  --w-ring: var(--sand-950);
+
+  /* type (app scale: 12 / 14 / 16 / 18 / 20 / 24 / 28 / 36 / 48 / 72) */
+  --w-sans: "Figtree", system-ui, -apple-system, sans-serif;
+  --w-serif: "EB Garamond", Georgia, serif;
+  --w-mono: "Google Sans Code", ui-monospace, Menlo, monospace;
+  --w-fs-xs: 12px; --w-fs-sm: 14px; --w-fs-md: 16px; --w-fs-lg: 18px; --w-fs-xl: 20px;
+  --w-fs-2xl: 24px; --w-fs-3xl: 28px; --w-fs-4xl: 36px; --w-fs-5xl: 48px; --w-fs-6xl: 72px;
+
+  /* shape */
+  --w-r-xs: 4px; --w-r-sm: 6px; --w-r-md: 8px; --w-r-lg: 12px; --w-r-xl: 16px; --w-r-2xl: 24px; --w-r-full: 9999px;
+  --w-shadow-xs: 0 1px 2px 0 rgb(26 26 26 / .05);
+  --w-shadow-sm: 0 1px 3px 0 rgb(26 26 26 / .1), 0 1px 2px -1px rgb(26 26 26 / .1);
+  --w-shadow-md: 0 4px 6px -1px rgb(26 26 26 / .1), 0 2px 4px -2px rgb(26 26 26 / .1);
+  --w-shadow-lg: 0 10px 15px -3px rgb(26 26 26 / .1), 0 4px 6px -4px rgb(26 26 26 / .1);
+  --w-shadow-xl: 0 20px 25px -5px rgb(26 26 26 / .1), 0 8px 10px -6px rgb(26 26 26 / .1);
+
+  /* motion */
+  --w-ease: cubic-bezier(0.05, 0.6, 0.4, 0.95);   /* the app's main curve */
+  --w-ease-std: cubic-bezier(0.4, 0, 0.2, 1);
+  --w-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --w-ease-nudge: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --w-fast: .1s; --w-base: .15s;
+}
+
+/* dark: the app's own dark values */
+:root[data-theme="dark"] {
+  --w-bg: var(--vast-925); --w-surface: var(--vast-950); --w-card: var(--pure-black);
+  --w-fg: var(--vast-50); --w-fg-2: var(--vast-300); --w-fg-3: var(--vast-400);
+  --w-border: var(--vast-900); --w-hover: var(--vast-900);
+  --w-primary: var(--sand-50); --w-on-primary: var(--vast-950); --w-ring: var(--vast-50);
+  --w-shadow-sm: 0 1px 3px 0 rgb(0 0 0 / .3), 0 1px 2px -1px rgb(0 0 0 / .3);
+  --w-shadow-md: 0 4px 6px -1px rgb(0 0 0 / .3), 0 2px 4px -2px rgb(0 0 0 / .3);
+  --w-shadow-lg: 0 4px 8px -2px rgb(0 0 0 / .45), 0 1px 3px 0 rgb(0 0 0 / .3);
+}
+
+/* ---------- components (prefix w-) ---------- */
+
+/* product lockup: the product name set in Wispr's type (no logo) */
+.w-lockup { display: inline-flex; align-items: center; gap: 8px; color: var(--w-fg); text-decoration: none; }
+.w-lockup__name { font: 700 var(--w-fs-xl)/1 var(--w-sans); letter-spacing: -.025em; white-space: nowrap; }
+.w-lockup .w-badge { transform: translateY(-1px); }
+/* app-icon slot: black rounded tile with the product name in Figtree */
+.w-tile { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 22%;
+  background: var(--vast-950); color: var(--sand-50); font: 700 11px/1 var(--w-sans); letter-spacing: -.01em; flex: none; }
+.w-tile--lg { width: 64px; height: 64px; font-size: 15px; }
+
+/* buttons: the app's 8px radius, 14px Figtree 500 */
+.w-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 16px;
+  border-radius: var(--w-r-md); border: 1px solid transparent; font: 500 var(--w-fs-sm)/1 var(--w-sans); cursor: pointer;
+  text-decoration: none; transition: background-color var(--w-base) ease, border-color var(--w-base) ease, transform var(--w-fast) var(--w-ease); }
+.w-btn:active { transform: scale(.98); }
+.w-btn:focus-visible { outline: 2px solid var(--w-ring); outline-offset: 2px; }
+.w-btn--primary { background: var(--w-primary); color: var(--w-on-primary); }
+.w-btn--primary:hover { background: var(--vast-875); }
+.w-btn--secondary { background: var(--sand-600); color: var(--vast-950); }
+.w-btn--secondary:hover { background: #e6e2d7; }
+.w-btn--outline { background: var(--w-card); color: var(--w-fg); border-color: var(--w-border); box-shadow: var(--w-shadow-xs); }
+.w-btn--outline:hover { background: var(--sand-200); }
+.w-btn--ghost { background: transparent; color: var(--w-fg); }
+.w-btn--ghost:hover { background: var(--w-hover); }
+.w-btn--accent { background: var(--w-accent); color: var(--w-on-accent); }
+.w-btn--lg { height: 44px; padding: 0 20px; font-size: var(--w-fs-md); }
+
+/* keycap: exact app spec */
+.w-kbd { --keycap-bg: var(--pure-white); --keycap-edge: var(--w-border); --keycap-drop: #d3ced6; --keycap-ink: var(--vast-900);
+  display: inline-flex; height: 22px; padding: 2px 8px; justify-content: center; align-items: center; border-radius: 4px;
+  border: 1px solid var(--keycap-edge); background: var(--keycap-bg); box-shadow: 0 2px 0 0 var(--keycap-drop);
+  color: var(--keycap-ink); font: 400 14px/1 var(--w-sans); white-space: nowrap; vertical-align: middle; }
+
+/* badges */
+.w-badge { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: var(--w-r-sm); font: 500 var(--w-fs-xs)/1 var(--w-sans); }
+.w-badge--pro { background: var(--pro); color: var(--pro-ink); font-size: var(--w-fs-sm); }
+.w-badge--new { background: var(--new); color: var(--new-ink); }
+.w-badge--quiet { background: var(--sand-600); color: var(--vast-700); }
+.w-badge--accent { background: var(--fathom-50); color: var(--fathom); }
+
+/* toggle */
+.w-toggle { appearance: none; position: relative; width: 36px; height: 20px; border-radius: var(--w-r-full); background: var(--vast-200);
+  cursor: pointer; transition: background-color var(--w-base) ease; flex: none; margin: 0; }
+.w-toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff;
+  box-shadow: var(--w-shadow-sm); transition: transform var(--w-base) var(--w-ease); }
+.w-toggle:checked { background: var(--vast-950); }
+.w-toggle:checked::after { transform: translateX(16px); }
+
+/* surfaces */
+.w-card { background: var(--w-card); border: 1px solid var(--w-border); border-radius: var(--w-r-xl); }
+.w-panel { background: var(--w-surface); border: 1px solid var(--w-border); border-radius: var(--w-r-xl); box-shadow: var(--w-shadow-xs); }
+.w-stat { background: var(--w-bg); border: 1px solid var(--w-border); border-radius: var(--w-r-xl); padding: 16px; }
+.w-stat b { font: 400 var(--w-fs-3xl)/1.1 var(--w-serif); }
+.w-banner { background: var(--pure-black); color: var(--sand-50); border-radius: var(--w-r-xl); padding: 28px; }
+.w-banner .w-btn--secondary { background: var(--sand-600); }
+.w-dialog { background: var(--w-surface); border: 1px solid var(--w-border); border-radius: 12px; padding: 24px; box-shadow: var(--w-shadow-xl); }
+
+/* type helpers */
+.w-display { font: 400 clamp(36px, 6vw, 56px)/1.05 var(--w-serif); letter-spacing: -.015em; }
+.w-display em, .w-h em { font-style: italic; }
+.w-h { font: 600 var(--w-fs-3xl)/1.2 var(--w-sans); letter-spacing: -.01em; }
+.w-eyebrow { font: 500 var(--w-fs-xs)/1 var(--w-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--w-fg-3); }
+.w-mono { font-family: var(--w-mono); }
+
+/* list rows like the app's history list */
+.w-list { background: var(--w-card); border: 1px solid var(--w-border); border-radius: var(--w-r-lg); }
+.w-list > * + * { border-top: 1px solid var(--w-border); }
+
+/* flow bar (the dictation pill) */
+.w-flowbar { display: inline-flex; align-items: center; gap: 8px; height: 28px; padding: 0 4px; border-radius: var(--w-r-full);
+  background: var(--vast-950); border: 1px solid var(--vast-800); color: #fff; }
+
+/* =====================================================================
+   MARKETING MODE — wisprflow.ai (their Webflow stylesheet, Nov 2026).
+   Use on product/landing pages (Wrapped, Guru, Video, Pack 1, Growth OS).
+   App mode above (sand + white panels + black buttons) is for in-product UI:
+   cards, editors, dashboards inside a page.
+   ===================================================================== */
+:root {
+  --dawn: #f0d7ff;      /* their primary CTA fill */
+  --glow: #ffa946; --signal: #ffbcf2; --pulse: #7f1c34;
+  --lumen-dark: #e4e4d0;
+  --m-border: #1a1a1a4d;           /* border-primary */
+  --m-r-section: 5rem;             /* section-radius large (desktop) */
+  --m-r-card: 2rem;                /* section-radius medium */
+  --m-r-box: 1rem;                 /* nav box, small cards */
+}
+@media (max-width: 767px) { :root { --m-r-section: 2.5rem; --m-r-card: 1.5rem; } }
+
+.w-site { background: var(--lumen); color: var(--vast-950); font: 400 16px/1.5 var(--w-sans); -webkit-font-smoothing: antialiased; }
+
+/* announcement bar: fathom strip, white 14px 600, "Try for free ›" link */
+.w-announce { background: var(--fathom); color: #fff; font: 600 14px/1 var(--w-sans); text-align: center; padding: 15px 16px; }
+.w-announce a { color: #fff; margin-left: 16px; text-decoration: none; white-space: nowrap; }
+
+/* nav: one bordered rounded box, max 64rem */
+.w-nav { max-width: 64rem; margin: 16px auto 0; display: flex; align-items: center; gap: 16px; padding: 8px 8px 8px 16px;
+  border: 2px solid var(--lumen-dark); border-radius: var(--m-r-box); background: var(--lumen); }
+.w-nav__links { margin-left: auto; display: flex; align-items: center; gap: 4px; font: 600 14px/1.3 var(--w-sans); }
+.w-nav__links a { color: var(--vast-800); text-decoration: none; padding: 8px 8px; border-radius: 12px; transition: color .3s; }
+.w-nav__links a:hover { color: var(--vast-950); }
+
+/* segmented pill (Dictation | Notetaker) */
+.w-seg { display: inline-flex; padding: 3px; border-radius: var(--w-r-full); background: var(--lumen-dark); }
+.w-seg > * { font: 600 14px/1 var(--w-sans); padding: 9px 14px; border-radius: var(--w-r-full); color: var(--vast-950); text-decoration: none; border: 0; background: none; cursor: pointer; }
+.w-seg > [aria-current], .w-seg > [aria-selected="true"], .w-seg > .is-on { background: #fff; }
+
+/* the site's CTA: dawn fill, 2px ink border, 8px radius, 600, transform .2s */
+.w-cta { display: inline-flex; align-items: center; justify-content: center; gap: 10px; border: 2px solid var(--vast-950);
+  background: var(--dawn); color: var(--vast-950); border-radius: .5rem; padding: 1rem 1.5rem; font: 600 16px/1 var(--w-sans);
+  text-decoration: none; cursor: pointer; transition: transform .2s, color .3s; }
+.w-cta:hover { transform: translateY(-2px); }
+.w-cta--sm { padding: .75rem 1rem; font-size: 14px; }
+.w-cta--ink { background: var(--vast-950); color: var(--lumen); }
+.w-cta--lumen { background: var(--lumen); }
+.w-cta__note { display: block; margin-top: 16px; font: 400 13px/1.4 var(--w-sans); color: var(--vast-700); }
+
+/* hero: eyebrow caps → serif H1 (line 2 italic) → 18px body → CTA → 13px note */
+.w-hero { text-align: center; padding: 56px 16px 64px; }
+.w-hero .w-eyebrow { color: var(--vast-800); font-size: 13px; letter-spacing: .08em; }
+.w-hero h1 { font: 400 clamp(56px, 9vw, 112px)/.85 var(--w-serif); letter-spacing: -.02em; margin: 20px 0 28px; }
+.w-hero h1 em { font-style: italic; display: block; }
+.w-hero p { font: 400 18px/1.35 var(--w-sans); max-width: 26em; margin: 0 auto 24px; }
+
+/* stacked section panels: huge top radius, black then fathom */
+.w-section { border-radius: var(--m-r-section) var(--m-r-section) 0 0; padding: 72px 24px 96px; margin-top: calc(-1 * var(--m-r-section)); position: relative; }
+.w-section:first-of-type { margin-top: 0; }
+.w-section--ink { background: var(--vast-950); color: var(--lumen); }
+.w-section--fathom { background: var(--fathom); color: #fff; }
+.w-section--lumen { background: var(--lumen); color: var(--vast-950); }
+.w-section h2 { font: 400 clamp(44px, 6.5vw, 80px)/1.1 var(--w-serif); letter-spacing: -.02em; text-align: center; margin: 0 0 20px; }
+.w-section h2 em { font-style: italic; }
+.w-section .w-lede { font: 400 18px/1.4 var(--w-sans); text-align: center; max-width: 34em; margin: 0 auto; }
+.w-section .w-eyebrow { color: inherit; opacity: .9; text-align: center; display: block; font-size: 13px; }
+
+/* site cards inside sections: 2rem radius, 2px translucent border */
+.w-mcard { border-radius: var(--m-r-card); border: 2px solid var(--m-border); padding: 32px; }
+.w-section--fathom .w-mcard, .w-section--ink .w-mcard { border-color: rgb(255 255 235 / .18); }
+.w-stat-serif { font: 400 40px/1 var(--w-serif); letter-spacing: -.01em; }
+.w-stat-serif small { display: block; font: 400 16px/1.2 var(--w-sans); margin-bottom: 6px; }
+
+/* the dictation pill as drawn on the site: white, 2px ink border, waveform bars */
+.w-pill { display: inline-flex; align-items: center; gap: 3px; height: 52px; padding: 0 16px; border-radius: var(--w-r-full);
+  border: 2px solid var(--vast-950); background: #fff; }
+.w-pill i { display: block; width: 3px; border-radius: 2px; background: var(--vast-950); height: 30%; }
+
+/* hold-to-talk affordance: "Hold [fn] and speak" */
+.w-hold { display: inline-flex; align-items: center; gap: 8px; font: 500 14px/1 var(--w-sans); color: var(--w-fg-2); }
+
+/* footer */
+.w-foot { background: var(--vast-950); color: var(--lumen); padding: 64px 24px 40px; font: 400 14px/1.5 var(--w-sans); }
+.w-foot a { color: var(--lumen); }

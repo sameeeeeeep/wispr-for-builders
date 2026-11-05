@@ -1,4 +1,4 @@
-// wispr-pm — task boards by voice, made for Wispr (unofficial). See ../README.md.
+// Wispr PM — task boards by voice. See ../README.md.
 //
 // Reuses, does not rebuild:
 //   - the Switchboard board dialect + transforms (vendor/tasks.mjs is a verbatim copy of
@@ -66,7 +66,13 @@ export async function present(spec) {
   return b.present({ at: 'notch', focus: false, timeout: Number(process.env.WISPR_PM_TIMEOUT) || 300, ...rest, title: spec.title.slice(0, 90) })
 }
 export async function notify(text, opts = {}) { if (NOCARD) return; const b = await bridge(); if (b) await b.notify(text, { title: 'wispr pm', ttl: 4, ...opts }) }
-async function pill(text, done = false) { if (NOCARD) return; const b = await bridge(); if (b) await b.progress(text, { id: 'wispr-pm', title: 'Waiting on you', done }) }
+// The waiting pill: a status, not a loader (no spinner). Clicking it opens the list (`wispr-pm waiting`); × hides it.
+const SELF_BIN = join(HOME, 'bin', 'wispr-pm')
+async function pill(text, done = false) {
+  if (NOCARD) return
+  const b = await bridge(); if (!b) return
+  await b.progress(text, { id: 'wispr-pm', title: 'Waiting on you', done, busy: false, closable: true, run: existsSync(SELF_BIN) ? [SELF_BIN, 'waiting'] : undefined })
+}
 
 // ── projects ────────────────────────────────────────────────────────────────
 // Seeded once; edit ~/.wispr-pm/projects.json to add aliases. Any other folder under ~/Documents/Projects
@@ -199,12 +205,35 @@ export function findCard(project, words) {
 const STOPW = new Set(['the', 'for', 'and', 'this', 'that', 'thread', 'task', 'card', 'fix', 'with', 'into', 'from'])
 
 // ── refresh the waiting-on-you pill at the notch ──────────────────────────────
+// Collapsed it never cuts a title mid-sentence: just the count. The list has the details.
+const SNOOZE_FILE = join(HOME, 'snooze.json')
+export const snoozedUntil = () => Number(readJson(SNOOZE_FILE, {}).until) || 0
+export function snooze(minutes = 60) { writeJson(SNOOZE_FILE, { until: Date.now() + minutes * 60_000 }); return { snoozedUntil: new Date(Date.now() + minutes * 60_000).toISOString() } }
+export const pillText = (n) => `${n} waiting · tap to see`
 export async function refreshNotch() {
   const w = waiting()
-  if (!w.length) { await pill('', true); return { waiting: 0 } }
-  const names = w.slice(0, 2).map((t) => t.title.slice(0, 28)).join(' · ')
-  await pill(`${w.length} waiting on you: ${names}${w.length > 2 ? ' …' : ''}`)
+  if (!w.length || snoozedUntil() > Date.now()) { await pill('', true); return { waiting: w.length, snoozed: w.length > 0 } }
+  await pill(pillText(w.length))
   return { waiting: w.length }
+}
+// "2h", "3d", "just now"
+export function ago(iso, now = Date.now()) {
+  const t = Date.parse(iso); if (!isFinite(t)) return null
+  const m = Math.max(0, Math.round((now - t) / 60_000))
+  return m < 1 ? 'just now' : m < 60 ? `${m}m` : m < 1440 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`
+}
+// a title shortened at a word, never mid-word
+export function clip(s, n) { s = String(s || '').trim(); if (s.length <= n) return s; const c = s.slice(0, n - 1); return c.slice(0, Math.max(c.lastIndexOf(' '), n * 0.6)).trim() + '…' }
+/** Each waiting card with its project, how long it has waited and what it needs from you. */
+export function waitingItems(now = Date.now()) {
+  const th = Object.values(readJson(THREADS_FILE, {}))
+  return waiting().map((t) => {
+    const thread = th.filter((x) => x.title === t.title && x.project === t.project).sort((a, b) => String(b.started).localeCompare(String(a.started)))[0]
+    const needs = thread ? (thread.status === 'failed' ? 'the thread failed: check its log' : thread.status === 'running' ? 'a thread is still working on it' : 'review what the thread did')
+      : t.tag === 'me' ? 'needs your input' : 'needs your review'
+    const waited = thread ? ago(thread.ended || thread.started, now) : null
+    return { card: t, thread, project: t.project, title: t.title, waited, needs }
+  })
 }
 
 // ── Claude helpers ──────────────────────────────────────────────────────────
@@ -246,7 +275,7 @@ Command: ${JSON.stringify(text)}`)
 
 // ── the voice router ──────────────────────────────────────────────────────────
 const RX = [
-  ['waiting', /\b(waiting (on|for) me|needs? me|on my plate|blocked on me|my (inbox|queue)|what do i need to (review|check|answer)|needs? my (eyes|review|input))\b/],
+  ['waiting', /^show me$|\b(show me (what'?s )?waiting|waiting (on|for) me|needs? me|on my plate|blocked on me|my (inbox|queue)|what do i need to (review|check|answer)|needs? my (eyes|review|input))\b/],
   ['next', /\b(what'?s|what is|whats) (next|up next)\b|\bnext (task|thing|up)\b|\bwhat should i (do|work on|pick up)\b|\bwhat now\b/],
   ['split', /^(please )?(split|break( up| down)?|chunk|turn)\b.*\b(tasks?|cards?|pieces|steps|down|up)\b|^(split|triage|pm) (this|that)\b|^brain ?dump\b/],
 // park verbs at the very start win over a trailing "is done" or a thread phrase inside the task text
@@ -353,12 +382,15 @@ async function doWaiting() {
   const w = waiting()
   await refreshNotch()
   if (!w.length) { await notify('Nothing is waiting on you'); return { op: 'waiting', cards: [] } }
-  const opts = w.slice(0, 9).map((t) => ({ label: t.title.slice(0, 70), detail: t.project + (t.thread ? ' · thread' : '') }))
-  const r = await present({ title: `${w.length} waiting on you`, subtitle: 'Pick one to open it', options: opts, recommended: 1 })
-  const base = { op: 'waiting', cards: w.map((t) => ({ project: t.project, title: t.title })) }
+  const items = waitingItems().slice(0, 8)
+  const opts = items.map((it) => ({ label: clip(it.title, 70), detail: [it.project, it.waited && `waited ${it.waited}`, it.needs].filter(Boolean).join(' · ') }))
+  opts.push({ label: 'Snooze for an hour', detail: 'Hide the pill; it comes back with anything new after that' })
+  const r = await present({ title: `${w.length} waiting on you`, subtitle: 'Pick one to open it, or say what to do', options: opts, recommended: 1 })
+  const base = { op: 'waiting', cards: items.map((it) => ({ project: it.project, title: it.title, waited: it.waited, needs: it.needs })) }
   if (!r || !r.pick) return base
-  const card = w[r.pick - 1]
-  const th = Object.values(readJson(THREADS_FILE, {})).find((x) => x.title === card.title)
+  if (r.pick === opts.length) { const z = snooze(60); await refreshNotch(); await notify('Snoozed for an hour'); return { ...base, ...z } }
+  const card = items[r.pick - 1].card
+  const th = items[r.pick - 1].thread
   if (th && existsSync(th.log) && !NOCARD) run(['open', '-e', th.log])   // open the thread's output to read
   return { ...base, picked: card.title, opened: th ? th.log : null, action: await actOn(card) }
 }
@@ -372,7 +404,7 @@ async function doSplit(project, text) {
   if (!s.cards.length) { await notify('Found nothing new to add'); return { op: 'split', project, added: [], dropped: s.dropped } }
   const r = await present({
     title: `${s.cards.length} cards for ${project}. Keep which?`,
-    subtitle: 'Toggle, then Enter. Say "all" for every one.',
+    subtitle: 'Toggle the ones to keep, then Enter.',
     options: s.cards.map((c) => ({ label: c.title, detail: `${c.kind || 'task'} · ${c.prio || 'med'}${c.why ? ' · ' + c.why : ''}` })),
     multi: true,
   })

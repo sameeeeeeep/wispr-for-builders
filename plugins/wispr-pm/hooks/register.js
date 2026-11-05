@@ -1,4 +1,4 @@
-// wispr-pm — made for Wispr (unofficial). See ../README.md.
+// Wispr PM. See ../README.md.
 // session.start: link ~/.wispr-pm/bin/wispr-pm and refresh the waiting-on-you pill at the notch.
 // /pm <what you said> runs it like a dictated command; /pm ask opens the floating field for Wispr.
 // Never opens the microphone: Wispr types the words.

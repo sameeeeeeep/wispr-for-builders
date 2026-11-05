@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// wispr-wish CLI. Made for Wispr (unofficial). See ../README.md.
+// Wispr Wish CLI. See ../README.md.
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -33,7 +33,7 @@ function install({ register = true } = {}) {
 async function main() {
   try {
     if (!cmd || cmd === 'help' || cmd === '--help') {
-      console.log(`wispr-wish (made for Wispr, unofficial)
+      console.log(`Wispr Wish
   wispr-wish "<what you said>" [files...]    convert the Finder selection, or open a mini app
   wispr-wish ask                             floating field: dictate with Wispr, Enter
   wispr-wish parse "<text>"                  show how it was understood (no side effects)

@@ -21,7 +21,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ---
-"Wispr" and "Wispr Flow" are trademarks of their owner. This project is an
-unofficial set of mods made for Wispr Flow users. It is not made, endorsed or
-supported by Wispr. Fonts in plugins/wispr-video/app/fonts (EB Garamond, Figtree)
-are under the SIL Open Font License.
+Wispr for Builders is an independent project, not affiliated with or endorsed by Wispr.
+"Wispr" and "Wispr Flow" are trademarks of Wispr. The fonts (Figtree, EB Garamond) are under
+the SIL Open Font License; see the fonts/OFL-*.txt files beside them.

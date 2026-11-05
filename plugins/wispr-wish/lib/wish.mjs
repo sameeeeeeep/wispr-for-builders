@@ -1,4 +1,4 @@
-// wispr-wish — made for Wispr (unofficial). Run conversions and tiny mini apps by voice.
+// Wispr Wish — run conversions and tiny mini apps by voice.
 //
 //   wish("turn these PNGs into WebP")      -> converts the Finder selection next to the originals
 //   wish("a timer for 25 min")             -> opens a small timer window, instantly (no model call)
@@ -669,9 +669,24 @@ async function resultCard(outputs) {
 // ── mini apps ───────────────────────────────────────────────────────────────
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'app'
 
+// Wispr's faces (SIL OFL, in fonts/) inlined as data: URLs where the house CSS says /*FONTS*/ — a file:// page
+// can't load font files from disk (Chrome blocks them as cross-origin), and the apps must work offline.
+let fontCss = null
+function withFonts(html) {
+  if (!html.includes('/*FONTS*/')) return html
+  if (fontCss === null) {
+    fontCss = ''
+    for (const [fam, file, w] of [['Figtree', 'Figtree.ttf', '300 900'], ['EB Garamond', 'EBGaramond-400.ttf', '400']]) {
+      try { fontCss += `@font-face{font-family:"${fam}";src:url(data:font/ttf;base64,${readFileSync(join(PKG_ROOT, 'fonts', file)).toString('base64')}) format("truetype");font-weight:${w};font-display:block}` } catch { /* system font stands in */ }
+    }
+  }
+  return html.replace('/*FONTS*/', () => fontCss)
+}
+
 function fillTemplate(name, params) {
   let html = readFileSync(join(PKG_ROOT, 'apps', name + '.html'), 'utf8')
   html = html.replace('/*BASE*/', readFileSync(join(PKG_ROOT, 'apps', '_base.css'), 'utf8'))
+  html = withFonts(html)
   html = html.replace(/\/\*PARAMS\*\/\{[^\n]*?\};/, JSON.stringify(params).replace(/</g, '\\u003c') + ';')
   if (html.includes('/*QRLIB*/')) html = html.replace('/*QRLIB*/', () => readFileSync(join(PKG_ROOT, 'vendor', 'qrcode-generator.js'), 'utf8'))
   return html
@@ -698,9 +713,9 @@ Rules:
 - It opens in a small window about 380x520: call try{window.resizeTo(W,H)}catch(e){} with W at least 380. Nothing may clip or overflow horizontally at 360px wide (flex children need min-width:0).
 - Prefill everything you can from the request (numbers, names, amounts). Usable immediately, zero setup.
 - Keyboard friendly; big readable primary output; at most one screen; no scrolling at that size.
-- Use this house CSS verbatim at the top of the <style> and build on its tokens (it handles light and dark):
+- Use this house CSS verbatim at the top of the <style> (keep the /*FONTS*/ line) and build on its tokens. Wrap big numbers in class="num" (serif figures); secondary buttons are the default <button>, the main one gets class="primary":
 ${css}
-- Put <footer><span>made for Wispr</span><span>(a one-line hint)</span></footer> at the bottom of body, after <main>.
+- Put <footer><span>Wispr Wish</span><span>(a one-line hint)</span></footer> at the bottom of body, after <main>.
 - Keep it under 250 lines. No alerts, no localStorage requirement (wrap any storage in try/catch).`
 
 async function generateApp(idea) {
@@ -719,7 +734,7 @@ async function generateApp(idea) {
   let html = r.stdout.trim().replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '')
   const i = html.search(/<!doctype html>|<html/i)
   if (i < 0) throw new Error('The app builder returned no HTML' + (r.stderr ? ': ' + r.stderr.trim().slice(0, 160) : ''))
-  html = html.slice(i)
+  html = withFonts(html.slice(i))
   mkdirSync(APPS_OUT, { recursive: true })
   writeFileSync(file, html)
   return { file, cached: false }

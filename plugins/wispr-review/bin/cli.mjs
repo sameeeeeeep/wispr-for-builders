@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// wispr-review (made for Wispr, unofficial) — the local side of the Wispr Review Chrome extension.
+// wispr-review — the local side of the Wispr Review Chrome extension.
 //   wispr-review serve [--daemon]       local sink on 127.0.0.1:4377: the extension posts notes here, they land in ~/.wispr-review
 //   wispr-review notes [--json] [--all] [--site host]   open notes as markdown (what Claude reads)
 //   wispr-review done <n|id> [--site host] [what changed] / reopen <n|id> [--site host]

@@ -1,6 +1,6 @@
 # Wispr Bridge API
 
-The ultralight harness every "made for Wispr" pack mod uses. Unofficial, not affiliated with Wispr.
+The ultralight harness every Wispr for Builders pack mod uses.
 
 Three jobs:
 
@@ -35,7 +35,7 @@ await present({
     { label: 'Close-up',  image: '/abs/path/b.jpg' },
     { label: 'Wide' ,     image: '/abs/path/c.png' },
   ],
-  multi: false,                         // true: toggle several, then Enter / "done"
+  multi: false,                         // true: toggle several, then Enter
   recommended: 1,                       // optional 1-based highlight
   at: 'notch' | 'cursor' | 'center',    // default 'notch'
   focus: true,                          // false: show without taking keyboard focus; the card

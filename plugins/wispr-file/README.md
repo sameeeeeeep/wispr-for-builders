@@ -1,13 +1,13 @@
-# Wispr File (made for Wispr)
+# Wispr File
 
-Find any file on your Mac by saying what it is. Unofficial: not made by or affiliated with Wispr.
+Find any file on your Mac by saying what it is.
 
 > "find my passport photo" · "the GST invoice from October" · "last screenshot of the admin panel, reveal it"
 
 You dictate the request with Wispr Flow. A card shows the 3-6 best matches as Quick Look thumbnails,
-numbered 1-6. Say "two", press 2 or click, and the file is pasted into the app you were in. Or say
-what to do with it: "reveal it", "open it", "copy it", "copy the path", "attach it in Slack". You can also
-answer the card with "two, reveal it".
+numbered 1-6. Click one or press its number, and the file is pasted into the app you were in. To do
+something else with it, add it in your own words: "2, reveal it", "2, copy the path", "2, attach it in
+Slack".
 
 It never opens the microphone. Wispr types your words into a text field, and that's all the mod reads.
 

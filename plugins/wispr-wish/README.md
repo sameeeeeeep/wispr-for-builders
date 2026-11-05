@@ -1,6 +1,6 @@
-# Wispr Wish (made for Wispr)
+# Wispr Wish
 
-Say it with Wispr Flow, and it happens. Unofficial; not affiliated with Wispr.
+Say it with Wispr Flow, and it happens.
 
 **Conversions** act on the Finder selection, but only when it is on screen: Finder is in front, or the
 selected file sits in a Finder window you can see. (Finder remembers a selection for days, even with no

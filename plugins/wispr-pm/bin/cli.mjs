@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// wispr-pm CLI. Made for Wispr (unofficial). See ../README.md.
+// Wispr PM CLI. See ../README.md.
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -43,7 +43,7 @@ function board(project) {
   return lines.join('\n')
 }
 
-const HELP = `wispr-pm — task boards by voice (made for Wispr, unofficial)
+const HELP = `Wispr PM — task boards by voice
   wispr-pm "<what you said>"        park / next / waiting / split / thread / done, by voice
   wispr-pm ask                      floating field: dictate with Wispr, Enter
   wispr-pm park [project] <text>    wispr-pm next [project]    wispr-pm waiting
@@ -86,6 +86,7 @@ try {
     case 'threads': out(pm.threads()); break
     case 'thread-done': out(await pm.threadDone(rest[0], rest[1])); break
     case 'notch': out(await pm.refreshNotch()); break
+    case 'snooze': { out(pm.snooze(Number(rest[0]) || 60)); await pm.refreshNotch(); break }
     case 'handle': {
       let json = rest[0]
       if (!json) { json = ''; for await (const c of process.stdin) json += c }
