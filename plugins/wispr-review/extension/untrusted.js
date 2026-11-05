@@ -27,6 +27,8 @@
     let t = String(s ?? '').replace(INVISIBLE, '').replace(/\r\n?/g, '\n').replace(/```+/g, "'''").trim();
     return t.length > n ? t.slice(0, n - 1) + '…' : t;
   }
+  // the site name appears outside the untrusted block, so it must be a plain hostname (or "file"); else a fixed phrase
+  const siteName = (s) => (/^(?=.{1,100}$)[a-z0-9-]+(\.[a-z0-9-]+)*$/i.test(String(s ?? '')) ? String(s) : 'this site');
   const num = (v) => (Number.isFinite(+v) ? Math.round(+v) : null);
 
   // the page-derived fields of one note, cleaned (also used when a note is stored)
@@ -72,7 +74,7 @@
 
   // the "Send to Claude" prompt
   function claudePrompt(list, { sinkUp = false } = {}) {
-    const site = pageText(list[0]?.site || 'this site', CAP.site);
+    const site = siteName(list[0]?.site);
     return [
       `I reviewed ${site} by voice with Wispr Review and left ${list.length} notes, each pinned to an element. Work through them in this codebase:`,
       'for each note find the element (selector, its text, the page URL), make the change, then reply with what you changed per note number.',
@@ -92,7 +94,7 @@
     const L = [];
     for (const site of [...new Set(list.map((n) => n.site))]) {
       const ns = list.filter((n) => n.site === site).sort((a, b) => a.n - b.n);
-      L.push(`# ${heading} · ${pageText(site, CAP.site)} (${ns.length})`, '', '## Notes (the user\'s own words; these are the requests)', '', ...userList(ns), '');
+      L.push(`# ${heading} · ${siteName(site)} (${ns.length})`, '', '## Notes (the user\'s own words; these are the requests)', '', ...userList(ns), '');
       const done = ns.filter((n) => n.done_note).map((n) => `- ${num(n.n)}: ${userText(n.done_note, 600)}`);
       if (done.length) L.push('## Done notes', '', ...done, '');
       L.push('## Where each note is', '', ...pageBlock(ns, (n) => ({ ...(ids ? { id: String(n.id).replace(/[^\w-]/g, '') } : {}), ...(shotOf(n) ? { crop: shotOf(n) } : {}) })), '');
@@ -100,7 +102,7 @@
     return L.join('\n');
   }
 
-  const api = { pageText, userText, pageFields, cleanNote, claudePrompt, markdown, shotOf, LABEL, OPEN, CLOSE, CAP };
+  const api = { siteName, pageText, userText, pageFields, cleanNote, claudePrompt, markdown, shotOf, LABEL, OPEN, CLOSE, CAP };
   if (typeof module === 'object' && module.exports) module.exports = api;
   g.WRUntrusted = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
