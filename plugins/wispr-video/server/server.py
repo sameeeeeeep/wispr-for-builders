@@ -237,8 +237,10 @@ class H(BaseHTTPRequestHandler):
                     text = self.jbody().get('text', '').strip()
                     if not text: return self.send(400, {'error': 'say something first'})
                     return self.send(200, job('claude', pid, lambda pr: run_claude(pid, text, pr)))
-                if act == 'reveal':
-                    subprocess.run(['open', '-R', self.jbody()['file']]); return self.send(200, {'ok': True})
+                if act == 'reveal':   # only files inside this project (its exports) can be shown in Finder
+                    f = Path(str(self.jbody().get('file', ''))).resolve()
+                    if not E.within(pid, f) or not f.is_file(): return self.send(403, {'error': 'can only reveal files in this project'})
+                    subprocess.run(['open', '-R', str(f)]); return self.send(200, {'ok': True})
             self.send(404, {'error': 'not found'})
         except Exception as e:
             traceback.print_exc(); self.send(500, {'error': str(e)})

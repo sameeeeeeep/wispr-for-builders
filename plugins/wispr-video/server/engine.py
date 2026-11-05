@@ -1,6 +1,6 @@
 """Wispr Video engine: the project (a JSON edit list), the edit ops, transcription and the ffmpeg export.
 Shared by the HTTP server (the editor UI) and the MCP server (Claude). Projects live in ~/WisprVideo/<id>/."""
-import copy, difflib, hashlib, json, os, re, shutil, subprocess, tempfile, threading, time, uuid
+import copy, difflib, hashlib, json, math, os, re, shutil, subprocess, tempfile, threading, time, uuid
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -16,7 +16,27 @@ _lock = threading.RLock()
 
 # ---------- projects ----------
 
-def pdir(pid): return HOME / pid
+PID_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$')
+
+
+def pdir(pid):
+    """A project's folder. The id is checked here, so no caller can reach outside ~/WisprVideo with it."""
+    if not isinstance(pid, str) or not PID_RE.match(pid) or '..' in pid: raise ValueError(f'bad project id {pid!r}')
+    return HOME / pid
+
+
+def within(pid, path):
+    """True if path resolves inside the project's folder."""
+    base = pdir(pid).resolve()
+    try: Path(path).resolve().relative_to(base); return True
+    except ValueError: return False
+
+
+def source_file(pid, s):
+    """A source's media file, confined to the project folder (a crafted project can't point ffmpeg elsewhere)."""
+    f = (pdir(pid) / str(s.get('file', ''))).resolve()
+    if not within(pid, f): raise ValueError(f"source {s.get('id')} points outside the project")
+    return f
 def slug(s): return re.sub(r'[^a-z0-9]+', '-', (s or 'video').lower()).strip('-')[:40] or 'video'
 def rid(prefix): return prefix + uuid.uuid4().hex[:6]
 
@@ -81,7 +101,7 @@ def set_current(pid):
 def load(pid=None):
     pid = pid or current()
     if not pid: raise ValueError('no project yet: create one with video_new or in the editor')
-    return json.loads((pdir(pid) / 'project.json').read_text())
+    return sanitize(json.loads((pdir(pid) / 'project.json').read_text()), pid)
 
 
 def save(pid, p, note='', snapshot=True):
@@ -151,7 +171,7 @@ def active(t, at):
     return None
 
 
-def fr(x): return round(round(x * FPS) / FPS, 4)   # snap to a frame
+def fr(x): return round(round(_num(x, -1e6, 1e6, 'time') * FPS) / FPS, 4)   # snap to a frame (numbers only)
 
 
 def sort_tracks(p):
@@ -306,22 +326,132 @@ def silence_ranges(p, min_gap=0.45, keep=0.12, fillers=True):
 def apply_ops(pid, ops, note=''):
     """Apply a list of edit ops (see OPS_DOC) and save. Returns (project, log)."""
     with _lock:
+        pid = pid or current()
         p = load(pid); log = []
         for op in ops:
             log.append(_op(p, dict(op)))
         sort_tracks(p)
-        p = save(p['id'], p, note or '; '.join(log)[:200])
+        sanitize(p, pid)   # every value that can reach ffmpeg is a checked number or colour before it's saved
+        p = save(pid, p, note or '; '.join(log)[:200])
         return p, log
 
 
 TEXT_STYLE = ('size', 'y', 'color', 'accent', 'bg', 'fill', 'weight', 'maxWidth', 'font', 'shadow')
+SET_PATHS = {'title', 'aspect', 'layout', 'bg', 'script', 'pip', 'pip.corner', 'pip.size', 'pip.shape',
+             'frame', 'frame.margin', 'frame.radius', 'frame.shadow'}
+CAPTION_KEYS = {'on', 'size', 'y', 'words', 'weight', 'upper', 'color', 'active', 'keyword', 'serifKeywords', 'box', 'keywords'}
+COLOR_RE = re.compile(r'^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$')
+
+
+def _num(v, lo, hi, name):
+    """A finite number clamped to [lo, hi]; anything else (strings, filter fragments, NaN) is rejected."""
+    if isinstance(v, bool) or not isinstance(v, (int, float, str)): raise ValueError(f'{name} must be a number')
+    try: f = float(v)
+    except (TypeError, ValueError): raise ValueError(f'{name} must be a number, got {v!r}')
+    if not math.isfinite(f): raise ValueError(f'{name} must be finite')
+    return min(max(f, lo), hi)
+
+
+def _color(v, name, empty=False):
+    if empty and v in ('', None): return ''
+    if not isinstance(v, str) or not COLOR_RE.match(v): raise ValueError(f'{name} must be a colour like #1A1A1A, got {v!r}')
+    return v
+
+
+def _box(b, name, need_size=True):
+    if not isinstance(b, dict): raise ValueError(f'{name} must be an object with x, y, w, h')
+    out = {k: _num(b.get(k, 0 if k in 'xy' else 1), 0, 1, f'{name}.{k}') for k in 'xywh'}
+    if need_size and (out['w'] <= 0 or out['h'] <= 0): raise ValueError(f'{name} needs a width and height above 0')
+    out['w'] = min(out['w'], 1 - out['x']); out['h'] = min(out['h'], 1 - out['y'])
+    return out
+
+
+def _style(st, name):
+    if not isinstance(st, dict): raise ValueError(f'{name} must be an object')
+    out = {}
+    for k, v in st.items():
+        if k not in TEXT_STYLE: continue
+        if k in ('color', 'accent'): out[k] = _color(v, f'{name}.{k}')
+        elif k in ('bg', 'fill'): out[k] = _color(v, f'{name}.{k}', empty=True)
+        elif k == 'font': out[k] = 'serif' if v == 'serif' else 'sans'
+        elif k == 'shadow': out[k] = bool(v)
+        elif k == 'weight': out[k] = _num(v, 100, 900, f'{name}.weight')
+        elif k == 'size': out[k] = _num(v, 0.005, 0.4, f'{name}.size')
+        else: out[k] = _num(v, 0, 1, f'{name}.{k}')
+    return out
+
+
+def sanitize(p, pid):
+    """Check and normalise a whole project in place. The id always comes from the caller, sources stay inside the
+    project folder, and every number or colour that reaches an ffmpeg filter string is validated here."""
+    pdir(pid)
+    p['id'] = pid
+    if p.get('aspect') not in SIZES: p['aspect'] = '9:16'
+    if p.get('layout', 'auto') not in LAYOUTS: raise ValueError(f"layout must be one of {LAYOUTS}")
+    p['bg'] = _color(p.get('bg', '#1A1A1A'), 'bg')
+    p['title'] = str(p.get('title', ''))[:200]; p['script'] = str(p.get('script') or '')
+    pip = p.setdefault('pip', {})
+    if not isinstance(pip, dict): raise ValueError('pip must be an object')
+    pip['corner'] = pip.get('corner', 'br') if pip.get('corner', 'br') in ('tl', 'tr', 'bl', 'br') else 'br'
+    pip['shape'] = 'rounded' if pip.get('shape') == 'rounded' else 'circle'
+    pip['size'] = _num(pip.get('size', 0.34), 0.1, 0.8, 'pip.size')
+    if p.get('frame') is not None:
+        f = p['frame']
+        if not isinstance(f, dict): raise ValueError('frame must be an object')
+        p['frame'] = {'margin': _num(f.get('margin', 0.05), 0, 0.3, 'frame.margin'),
+                      'radius': _num(f.get('radius', 0.025), 0, 0.2, 'frame.radius'), 'shadow': bool(f.get('shadow', True))}
+    cs = p.setdefault('captions', {})
+    for k in list(cs):
+        if k not in CAPTION_KEYS: cs.pop(k)
+    for k, lo, hi in (('size', 0.01, 0.2), ('y', 0, 1), ('weight', 100, 900)):
+        if k in cs: cs[k] = _num(cs[k], lo, hi, f'captions.{k}')
+    if 'words' in cs: cs['words'] = int(_num(cs['words'], 1, 12, 'captions.words'))
+    for k in ('color', 'active', 'keyword'):
+        if k in cs: cs[k] = _color(cs[k], f'captions.{k}')
+    if 'box' in cs: cs['box'] = _color(cs['box'], 'captions.box', empty=True)
+    for k in ('on', 'upper', 'serifKeywords'):
+        if k in cs: cs[k] = bool(cs[k])
+    cs['keywords'] = [str(x)[:60] for x in (cs.get('keywords') or [])][:50]
+    for sid, s in (p.get('sources') or {}).items():
+        if not isinstance(s, dict) or not PID_RE.match(str(sid)): raise ValueError(f'bad source {sid!r}')
+        source_file(pid, s)
+        s['duration'] = _num(s.get('duration', 0), 0, 1e6, f'{sid}.duration')
+        for k in ('w', 'h'): s[k] = int(_num(s.get(k) or 0, 0, 20000, f'{sid}.{k}'))
+    for t in p.get('tracks') or []:
+        if t.get('kind') not in ('layout', 'overlay', 'screen', 'cam'): raise ValueError(f"bad track kind {t.get('kind')!r}")
+        if not PID_RE.match(str(t.get('id', ''))): raise ValueError(f"bad track id {t.get('id')!r}")
+        for c in t.get('clips') or []:
+            c['at'] = _num(c.get('at', 0), 0, 1e6, 'at')
+            if 'dur' in c: c['dur'] = _num(c['dur'], 0, 1e6, 'dur')
+            if t['kind'] == 'layout':
+                if c.get('mode') not in LAYOUTS: raise ValueError(f"layout mode must be one of {LAYOUTS}")
+                continue
+            if c.get('kind') == 'text':
+                c['text'] = str(c.get('text', ''))[:500]; c['style'] = _style(c.get('style') or {}, 'style')
+                c['anim'] = 'fade' if c.get('anim') == 'fade' else ''
+                continue
+            if c.get('src') not in (p.get('sources') or {}): raise ValueError(f"clip {c.get('id')} uses an unknown source")
+            c['in'] = _num(c.get('in', 0), 0, 1e6, 'in'); c['out'] = _num(c.get('out', 0), c['in'], 1e6, 'out')
+            if 'volume' in c: c['volume'] = _num(c['volume'], 0, 4, 'volume')
+            if 'radius' in c: c['radius'] = _num(c['radius'], 0, 0.5, 'radius')
+            if 'push' in c: c['push'] = _num(c['push'], 0, 1, 'push')
+            if c.get('box') is not None: c['box'] = _box(c['box'], 'box')
+            if c.get('crop') is not None: c['crop'] = _box(c['crop'], 'crop')
+            if 'fit' in c: c['fit'] = 'contain' if c['fit'] == 'contain' else 'cover'
+            if 'anim' in c: c['anim'] = 'fade' if c['anim'] == 'fade' else ''
+    return p
 
 
 def _op(p, o):
     k = o.pop('op', '')
     if k == 'set':
-        _set_path(p, o['path'], o['value']); return f"set {o['path']}"
+        path = str(o['path'])
+        if path not in SET_PATHS and not (path.startswith('captions.') and path.split('.', 1)[1] in CAPTION_KEYS):
+            raise ValueError(f'set can only change: {", ".join(sorted(SET_PATHS))}, captions.<key>')
+        _set_path(p, path, o['value']); return f"set {path}"
     if k == 'captions':
+        bad = [x for x in o if x not in CAPTION_KEYS]
+        if bad: raise ValueError(f'unknown caption setting {bad}')
         p['captions'].update({x: v for x, v in o.items()}); return 'captions ' + ', '.join(o)
     if k == 'keywords':
         kw = [x for x in p['captions'].get('keywords', []) if x not in (o.get('remove') or [])]
@@ -523,8 +653,8 @@ def transcribe(pid, sid=None):
         s = p['sources'][sid]
         if not s.get('hasAudio'): continue
         sil = s.get('silences')
-        if sil is None: sil = detect_silences(pdir(pid) / s['file'])
-        words = _whisper(pdir(pid) / s['file'], sil)
+        if sil is None: sil = detect_silences(source_file(pid, s))
+        words = _whisper(source_file(pid, s), sil)
         words = _align_to_script(words, p.get('script', ''))
         with _lock:
             p = load(pid); p['sources'][sid]['words'] = words; p['sources'][sid]['silences'] = sil
@@ -804,18 +934,19 @@ def _segment_cmd(p, a, b, W, H, out, work, still=False):
 
     def inp(c, image=False):
         nonlocal n
-        s = p['sources'][c['src']]; f = str(pdir(p['id']) / s['file'])
+        s = p['sources'][c['src']]; f = str(source_file(p['id'], s))
         if s['kind'] == 'image': args.extend(['-loop', '1', '-t', f'{d}', '-i', f])
         else: args.extend(['-ss', f"{c['in'] + (a - c['at']):.4f}", '-t', f'{d + 0.2:.4f}', '-i', f])   # margin: a one-frame window can miss every source frame
         n += 1; return n - 1
 
-    fc.append(f"color=c={p.get('bg', '#1A1A1A').replace('#', '0x')}:s={W}x{H}:r={FPS}:d={d}[base]")
+    fc.append(f"color=c={_color(p.get('bg', '#1A1A1A'), 'bg').replace('#', '0x')}:s={W}x{H}:r={FPS}:d={d}[base]")
     last = 'base'
 
     def place(idx, box, label, radius=0, circle=False, fade=False, fit=None, aspect=None, clip=None, shadow=False):
         nonlocal last, n
         x, y, w, h, f0 = box; fit = fit or f0
         cr = (clip or {}).get('crop')   # {x,y,w,h} of the source, 0-1: a punch-in on part of the frame
+        if cr is not None: cr = _box(cr, 'crop')   # re-checked here too: only numbers ever reach the filter string
         pre = f"crop=iw*{cr['w']}:ih*{cr['h']}:iw*{cr['x']}:ih*{cr['y']}," if cr else ''
         if cr and aspect: aspect = (aspect[0] * cr['w'], aspect[1] * cr['h'])
         if fit == 'contain' and aspect:   # shrink the box to the media's own shape, so corners and masks hug it
@@ -826,7 +957,7 @@ def _segment_cmd(p, a, b, W, H, out, work, still=False):
         w, h = _ev(w), _ev(h)
         push = ''
         if clip and clip.get('push'):   # slow push-in across the whole clip, continuous over segment cuts
-            L = max(0.1, clip_len(clip)); off = a - clip['at']
+            L = max(0.1, float(clip_len(clip))); off = float(a) - float(clip['at']); clip = {**clip, 'push': _num(clip['push'], 0, 1, 'push')}
             push = f",zoompan=z='1+{clip['push']}*({off:.4f}+on/{FPS})/{L:.4f}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={w}x{h}:fps={FPS}"
         if fit == 'cover': fc.append(f"[{idx}:v]setpts=PTS-STARTPTS,{pre}fps={FPS},scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}{push},setsar=1,format=rgba[{label}0]")
         else: fc.append(f"[{idx}:v]setpts=PTS-STARTPTS,{pre}fps={FPS},scale={w}:{h}:force_original_aspect_ratio=decrease,setsar=1,format=rgba[{label}0]")
