@@ -14,8 +14,9 @@ the editor window (http://127.0.0.1:4380) updates live whenever you change it wi
   clips with a `box` in 0–1 canvas units), `screen` (screen recordings), `cam` (the talking head; its audio
   is the voice and its words are the captions).
 - **Clips**: `{id, src, at, in, out}`, where `at` is the timeline second and `in`/`out` are source seconds. Layout
-  clips use `{at, dur, mode}`.
+  clips use `{at, dur, mode}`, plus an optional `pip` with that section's own bubble (`x`/`y` centre, `size`, `shape`, `corner`).
 - **Layouts**: `cam`, `screen`, `pip` (screen with a camera bubble), `split`, `auto` (pip if there's a screen clip).
+- **Screen audio**: a screen take recorded with audio keeps it on the screen clip (volume 0.5 by default), separate from the mic.
 - **Captions** come from the word-level transcript of the camera clips, chunked `words` at a time; the word
   being spoken uses `active`, `keywords` use `keyword` (and an italic serif if `serifKeywords`).
 
@@ -49,6 +50,9 @@ Common requests:
 | "it says Whisper, it's Wispr" | `{"op":"replace_word","find":"Whisper","replace":"Wispr"}` |
 | "make it 4:5" | `{"op":"set","path":"aspect","value":"4:5"}` |
 | "bubble top-left, smaller" | `{"op":"set","path":"pip.corner","value":"tl"}`, `{"op":"set","path":"pip.size","value":0.26}` |
+| "put my face just left of the chart" | `{"op":"set","path":"pip","value":{"x":0.3,"y":0.72,"size":0.28,"shape":"circle","corner":"bl"}}` (x/y = bubble centre, 0-1; null x/y goes back to the corner) |
+| "camera full for the intro, then the bubble, then just the screen" | three `layout` ops over consecutive ranges: `cam` 0–8, `pip` 8–30 (add `"pip":{"x":0.82,"y":0.78}` for that section's own spot), `screen` 30–end |
+| "turn the screen audio down under my voice" | `{"op":"update_clip","id":<screen clip>,"volume":0.3}`; the mic stays its own track (the camera clip, or a "mic" clip for screen-only takes) |
 
 New media from disk: `video_import` with `role` `screen` (a screen recording), `media` (b-roll; pass `at`) or
 `cam` (another talking-head take, transcribed automatically).

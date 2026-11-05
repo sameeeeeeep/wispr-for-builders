@@ -397,7 +397,7 @@ def apply_ops(pid, ops, note=''):
 
 
 TEXT_STYLE = ('size', 'y', 'color', 'accent', 'bg', 'fill', 'weight', 'maxWidth', 'font', 'shadow')
-SET_PATHS = {'title', 'aspect', 'layout', 'bg', 'script', 'pip', 'pip.corner', 'pip.size', 'pip.shape',
+SET_PATHS = {'title', 'aspect', 'layout', 'bg', 'script', 'pip', 'pip.corner', 'pip.size', 'pip.shape', 'pip.x', 'pip.y',
              'frame', 'frame.margin', 'frame.radius', 'frame.shadow'}
 CAPTION_KEYS = {'on', 'size', 'y', 'words', 'weight', 'upper', 'color', 'active', 'keyword', 'serifKeywords', 'box', 'keywords'}
 COLOR_RE = re.compile(r'^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$')
@@ -441,6 +441,21 @@ def _style(st, name):
     return out
 
 
+def _pip(pip, name, partial=False):
+    """The camera bubble: corner (tl|tr|bl|br), size, shape, and optionally x/y (its centre, 0-1 of the frame), which
+    override the corner. partial=True is a per-section override on a layout clip: only the keys it sets are kept."""
+    if pip is None and partial: return None
+    if not isinstance(pip, dict): raise ValueError(f'{name} must be an object')
+    out = {}
+    if not partial or 'corner' in pip: out['corner'] = pip.get('corner', 'br') if pip.get('corner', 'br') in ('tl', 'tr', 'bl', 'br') else 'br'
+    if not partial or 'shape' in pip: out['shape'] = 'rounded' if pip.get('shape') == 'rounded' else 'circle'
+    if not partial or 'size' in pip: out['size'] = _num(pip.get('size', 0.34), 0.1, 0.8, f'{name}.size')
+    for k in ('x', 'y'):
+        if pip.get(k) is not None: out[k] = _num(pip[k], 0, 1, f'{name}.{k}')
+    if ('x' in out) != ('y' in out): out.pop('x', None); out.pop('y', None)   # a position needs both
+    return out
+
+
 def sanitize(p, pid):
     """Check and normalise a whole project in place. The id always comes from the caller, sources stay inside the
     project folder, and every number or colour that reaches an ffmpeg filter string is validated here."""
@@ -450,11 +465,7 @@ def sanitize(p, pid):
     if p.get('layout', 'auto') not in LAYOUTS: raise ValueError(f"layout must be one of {LAYOUTS}")
     p['bg'] = _color(p.get('bg', '#1A1A1A'), 'bg')
     p['title'] = str(p.get('title', ''))[:200]; p['script'] = str(p.get('script') or '')
-    pip = p.setdefault('pip', {})
-    if not isinstance(pip, dict): raise ValueError('pip must be an object')
-    pip['corner'] = pip.get('corner', 'br') if pip.get('corner', 'br') in ('tl', 'tr', 'bl', 'br') else 'br'
-    pip['shape'] = 'rounded' if pip.get('shape') == 'rounded' else 'circle'
-    pip['size'] = _num(pip.get('size', 0.34), 0.1, 0.8, 'pip.size')
+    p['pip'] = _pip(p.get('pip', {}), 'pip')
     if p.get('frame') is not None:
         f = p['frame']
         if not isinstance(f, dict): raise ValueError('frame must be an object')
@@ -485,6 +496,7 @@ def sanitize(p, pid):
             if 'dur' in c: c['dur'] = _num(c['dur'], 0, 1e6, 'dur')
             if t['kind'] == 'layout':
                 if c.get('mode') not in LAYOUTS: raise ValueError(f"layout mode must be one of {LAYOUTS}")
+                if c.get('pip') is not None: c['pip'] = _pip(c['pip'], 'layout pip', partial=True)
                 continue
             if c.get('kind') == 'text':
                 c['text'] = str(c.get('text', ''))[:500]; c['style'] = _style(c.get('style') or {}, 'style')
@@ -584,7 +596,9 @@ def _op(p, o):
         lt = track(p, 'layout')
         _split(p, a, ['layout']); _split(p, b, ['layout'])
         lt['clips'] = [c for c in lt['clips'] if not (c['at'] >= a - 0.01 and clip_end(c) <= b + 0.01)]
-        lt['clips'].append({'id': rid('l'), 'at': a, 'dur': fr(b - a), 'mode': mode})
+        lc = {'id': rid('l'), 'at': a, 'dur': fr(b - a), 'mode': mode}
+        if o.get('pip') is not None: lc['pip'] = _pip(o['pip'], 'layout pip', partial=True)   # this section's own bubble
+        lt['clips'].append(lc)
         return f'layout {mode} {a}-{b}'
     if k == 'add_track':
         tid = o.get('id') or rid('overlay')
@@ -607,7 +621,7 @@ OPS_DOC = """Ops (times are timeline seconds):
 - {"op":"cut","start":s,"end":e}                ripple-delete a range on every track
 - {"op":"cut_silences","min_gap":0.45,"keep":0.12,"fillers":true}   remove pauses + um/uh
 - {"op":"split","at":t}                         split clips at t
-- {"op":"layout","mode":"cam|screen|pip|split|auto","start":s,"end":e}   (omit start/end = whole video)
+- {"op":"layout","mode":"cam|screen|pip|split|auto","start":s,"end":e,"pip":{"x":0.8,"y":0.75,"size":0.3}}   (omit start/end = whole video; pip = this section's own bubble: x/y its centre 0-1, size, shape, corner. Sections: camera full → bubble → screen is three layout ops over consecutive ranges)
 - {"op":"overlay","src":id,"start":s,"end":e,"box":{"x":0,"y":0,"w":1,"h":1},"fit":"cover|contain","radius":0.04,"track":"overlay"}
 - {"op":"add_clip","track":"screen|cam|overlay","src":id,"at":t,"in":0,"out":d}
 - {"op":"update_clip","id":cid, ...fields}      e.g. at, in, out, volume, box, fit, radius, crop, push; for a text clip also text, size, y, color, bg (merged into its style)
@@ -616,7 +630,7 @@ OPS_DOC = """Ops (times are timeline seconds):
 - {"op":"text","text":"Don't type, *just speak.*","start":s,"end":e,"y":0.5,"size":0.06,"color":"#FFFFEB","accent":"#F0D7FF","bg":"#1A1A1ACC","fill":"#FFFFEB"}   title / caption card; *stars* = italic serif; fill = full-frame card
 - {"op":"keywords","add":["wispr"],"remove":[]}
 - {"op":"replace_word","find":"wisper","replace":"Wispr"}
-- {"op":"set","path":"pip.size","value":0.3}     any field: aspect (9:16|4:5|16:9|1:1), pip.corner (tl|tr|bl|br), pip.shape (circle|rounded), bg, title
+- {"op":"set","path":"pip.size","value":0.3}     any field: aspect (9:16|4:5|16:9|1:1), pip.corner (tl|tr|bl|br), pip.shape (circle|rounded), pip.x/pip.y (bubble centre 0-1, overrides the corner; set "pip" to a whole object to set both, or x/y null to go back to the corner), bg, title
 - {"op":"add_track","label":"B-roll 2"}"""
 
 
@@ -908,9 +922,20 @@ def layout_at(p, t, has_cam, has_scr):
     return mode
 
 
-def geometry(p, mode, W, H, scr_wh=(16, 9)):
+def pip_at(p, t):
+    """The bubble settings at time t: the project's, with the layout section's own overrides on top."""
+    pip = dict(p.get('pip') or {})
+    c = active(track(p, 'layout'), t)
+    if c and c.get('pip'):
+        o = c['pip']
+        if 'x' in o or 'corner' in o: pip.pop('x', None); pip.pop('y', None)
+        pip.update(o)
+    return pip
+
+
+def geometry(p, mode, W, H, scr_wh=(16, 9), pip=None):
     """Boxes (x, y, w, h in px) for the screen and the camera in a layout. Used by the export and mirrored by the UI."""
-    pip = p.get('pip', {}); portrait = H > W
+    pip = pip if pip is not None else p.get('pip', {}); portrait = H > W
     sw, sh = scr_wh
     if mode == 'cam': return {'cam': (0, 0, W, H, 'cover')}
     if mode == 'screen' or mode == 'pip':
@@ -925,6 +950,8 @@ def geometry(p, mode, W, H, scr_wh=(16, 9)):
             corner = pip.get('corner', 'br')
             x = mx if 'l' in corner else W - s - mx
             yy = mx + 0.06 * H if 't' in corner else H - s - mx - (0.05 * H if portrait else 0)
+            if pip.get('x') is not None and pip.get('y') is not None:   # dragged: centre at x/y, kept inside the frame
+                x = min(max(float(pip['x']) * W - s / 2, 0), W - s); yy = min(max(float(pip['y']) * H - s / 2, 0), H - s)
             g['cam'] = (x, yy, s, s, 'cover')
         return g
     if mode == 'split':
@@ -993,7 +1020,8 @@ def _segment_cmd(p, a, b, W, H, out, work, still=False):
     ovs = [c for t, c in ovs if c]
     mode = layout_at(p, mid, bool(cam), bool(scr))
     scr_src = p['sources'][scr['src']] if scr else {}
-    g = geometry(p, mode, W, H, (scr_src.get('w') or 16, scr_src.get('h') or 9))
+    pip = pip_at(p, mid)
+    g = geometry(p, mode, W, H, (scr_src.get('w') or 16, scr_src.get('h') or 9), pip)
     args, fc, n = [], [], 0
 
     def inp(c, image=False):
@@ -1064,7 +1092,7 @@ def _segment_cmd(p, a, b, W, H, out, work, still=False):
     elif si is not None:
         place(si, g['screen'], 'scr')
     if ci is not None:
-        circle = mode == 'pip' and p.get('pip', {}).get('shape', 'circle') == 'circle'
+        circle = mode == 'pip' and pip.get('shape', 'circle') == 'circle'
         place(ci, g['cam'], 'cam', radius=0.12 if mode == 'pip' and not circle else 0, circle=circle)
     for k, c in enumerate(ovs):
         if c.get('kind') == 'text':
@@ -1176,7 +1204,7 @@ def still(pid=None, t=0.0, aspect=None, out=None):
 
 def summary(p, words=True):
     """Compact text view of a project for Claude."""
-    L = [f"project {p['id']} · \"{p['title']}\" · {p['aspect']} · {duration(p):.2f}s · rev {p['rev']} · layout default {p['layout']}"]
+    L = [f"project {p['id']} · \"{p['title']}\" · {p['aspect']} · {duration(p):.2f}s · rev {p['rev']} · layout default {p['layout']} · bubble {p.get('pip')}"]
     L.append('sources:')
     for s in p['sources'].values():
         L.append(f"  {s['id']}: {s['kind']} {s.get('name','')} {s['duration']:.2f}s {s.get('w')}x{s.get('h')}" + (f" · {len(s['words'])} words" if s.get('words') else ' · not transcribed' if s['kind'] == 'cam' else ''))
@@ -1184,7 +1212,7 @@ def summary(p, words=True):
     for t in p['tracks']:
         L.append(f"  [{t['id']}] {t['label']}")
         for c in t['clips']:
-            if t['kind'] == 'layout': L.append(f"    {c['id']} {c['at']:.2f}–{clip_end(c):.2f} {c['mode']}")
+            if t['kind'] == 'layout': L.append(f"    {c['id']} {c['at']:.2f}–{clip_end(c):.2f} {c['mode']}" + (f" bubble {c['pip']}" if c.get('pip') else ''))
             elif c.get('kind') == 'text': L.append(f"    {c['id']} {c['at']:.2f}–{clip_end(c):.2f} text \"{c['text']}\" {c.get('style')}")
             else: L.append(f"    {c['id']} {c['at']:.2f}–{clip_end(c):.2f} src {c['src']} in {c['in']:.2f} out {c['out']:.2f}" + (f" box {c.get('box')}" if t['kind'] == 'overlay' else '') + (f" vol {c.get('volume')}" if 'volume' in c else ''))
     cs = p['captions']

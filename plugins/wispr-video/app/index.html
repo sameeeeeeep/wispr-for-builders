@@ -64,7 +64,13 @@
     <section class="pane" data-pane="layout">
       <div class="field col"><span>Whole video</span><div class="seg" id="layoutDefault">
         <button data-m="auto">Auto</button><button data-m="cam">Camera</button><button data-m="screen">Screen</button><button data-m="pip">Bubble</button><button data-m="split">Split</button></div></div>
-      <p class="hint">Auto shows the bubble when there's a screen clip, the camera when there isn't. To change one stretch, select a clip and pick a layout in the inspector.</p>
+      <p class="hint">Auto shows the bubble when there's a screen clip, the camera when there isn't.</p>
+      <div class="field col"><span>Parts <span class="hint" id="secInfo"></span></span>
+        <div class="row"><div class="seg" id="secMode"><button data-m="cam">Camera</button><button data-m="pip">Bubble</button><button data-m="screen">Screen</button><button data-m="split">Split</button></div>
+        <button class="small" id="secSplit" title="Split the layout at the playhead">Split here</button></div>
+        <p class="hint">Split at the playhead, then pick a layout for each part: camera full, then the bubble, then just the screen.</p></div>
+      <div class="field" id="pipScopeRow" hidden><span>Bubble spot for</span><div class="seg small" id="pipScope"><button data-s="all">Whole video</button><button data-s="sec">This part</button></div></div>
+      <p class="hint" id="pipHint"></p>
       <div class="field"><span>Bubble corner</span><div class="seg small" id="pipCorner"><button data-c="tl">↖</button><button data-c="tr">↗</button><button data-c="bl">↙</button><button data-c="br">↘</button></div></div>
       <div class="field"><span>Bubble size</span><input type="range" id="pipSize" min="0.18" max="0.6" step="0.01"></div>
       <div class="field"><span>Bubble shape</span><div class="seg small" id="pipShape"><button data-s="circle">Circle</button><button data-s="rounded">Rounded</button></div></div>
@@ -79,6 +85,7 @@
         <div class="layer slot" id="slotScreen"><video id="vScreen" muted playsinline preload="auto"></video></div>
         <div class="layer slot" id="slotCam"><video id="vCam" playsinline preload="auto"></video></div>
         <div class="layer" id="ovLayer"></div>
+        <i class="guide gx" id="gX" hidden></i><i class="guide gy" id="gY" hidden></i>
         <div class="caps" id="caps"></div>
         <div class="empty" id="empty">
           <h2>Don't edit, <em>just say it.</em></h2>
@@ -139,10 +146,17 @@
     <div class="pkeys"><kbd>space</kbd> or <kbd>→</kbd> next line · <kbd>←</kbd> back · <kbd>R</kbd> record or stop. The prompt follows your voice and never moves on a timer.</div>
   </section>
   <aside class="rside">
-    <div class="camwrap"><video id="rCam" muted playsinline></video><button class="camon" id="camOn">Turn on camera</button><span class="recdot" id="recDot"></span><span class="clock" id="rClock">0:00</span></div>
+    <div class="camwrap"><video id="rCam" muted playsinline></video><button class="camon" id="camOn">Turn on camera</button><span class="recdot" id="recDot"></span><span class="clock" id="rClock">0:00</span><button class="float" id="btnFloat" hidden>Float camera</button><span class="floating" id="rFloating" hidden>Your camera is floating on top</span></div>
     <div class="field col"><span>Record</span>
       <div class="seg" id="rWhat"><button data-w="both">Camera + screen</button><button data-w="cam">Camera</button><button data-w="screen">Screen</button></div></div>
     <p class="hint" id="rHint"></p>
+    <div class="rsrc">
+      <label class="sw" id="rScrAudioRow"><input type="checkbox" id="rScrAudio" checked><span>Record screen audio</span></label>
+      <label class="sw" id="rMicRow" hidden><input type="checkbox" id="rMic" checked><span>Record my mic</span></label>
+      <label class="sw" id="rFloatRow"><input type="checkbox" id="rFloat" checked><span>Float my camera on top while I record</span></label>
+    </div>
+    <p class="apill" id="rAudio" hidden><i></i><span></span></p>
+    <p class="hint" id="rFloatNote" hidden></p>
     <label class="sw"><input type="checkbox" id="rVoice"><span>Also listen in the browser</span></label>
     <div class="row"><button class="cta rec" id="btnRec"><i></i>Record</button><button class="ghost" id="btnStop" disabled>Stop</button></div>
     <div class="field col script"><span>Script <em class="hint">one paragraph per line</em></span><textarea id="script" spellcheck="true" placeholder="Paste your script. Each paragraph becomes one teleprompter line."></textarea></div>

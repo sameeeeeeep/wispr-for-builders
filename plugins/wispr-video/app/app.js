@@ -44,7 +44,7 @@ async function boot() {
 
 async function load() {
   const j = await api(`/api/project/${pid}`);
-  P = j.project; D = j;
+  P = j.project; D = j; if (!bubDrag) pipDrag = null;
   if (sel && !findClip(sel)) sel = null;
   renderAll();
 }
@@ -98,18 +98,29 @@ function layoutAt(t, hasCam, hasScr) {
   return m;
 }
 
-function geometry(mode, W, H, sw = 16, sh = 9) {   // mirrors engine.geometry
-  const pip = P.pip || {}, portrait = H > W;
+// the bubble at time t: the project's, with the layout section's own spot on top (mirrors engine.pip_at)
+let pipDrag = null;   // live position while you drag the bubble on the stage
+function pipAt(t) {
+  const pip = { ...(P.pip || {}) }, c = activeIn(trackOf('layout'), t);
+  if (c && c.pip) { if ('x' in c.pip || 'corner' in c.pip) { delete pip.x; delete pip.y; } Object.assign(pip, c.pip); }
+  if (pipDrag) { delete pip.x; delete pip.y; Object.assign(pip, pipDrag); }
+  return pip;
+}
+function pipBox(pip, W, H) {   // [x, y, s, s] in frame px; corner unless x/y is set (its centre, 0-1)
+  const portrait = H > W, s = (pip.size || 0.34) * Math.min(W, H) * (portrait ? 1 : 0.9), mx = 0.05 * Math.min(W, H), cn = pip.corner || 'br';
+  let x = cn.includes('l') ? mx : W - s - mx, y = cn.includes('t') ? mx + 0.06 * H : H - s - mx - (portrait ? 0.05 * H : 0);
+  if (pip.x != null && pip.y != null) { x = clamp(pip.x * W - s / 2, 0, W - s); y = clamp(pip.y * H - s / 2, 0, H - s); }
+  return [x, y, s, s];
+}
+function geometry(mode, W, H, sw = 16, sh = 9, pip = P.pip || {}) {   // mirrors engine.geometry
+  const portrait = H > W;
   if (mode === 'cam') return { cam: [0, 0, W, H] };
   if (mode === 'screen' || mode === 'pip') {
     const m = 0.04 * W; let bw = W - 2 * m, bh = bw * sh / sw;
     if (bh > H - 2 * m) { bh = H - 2 * m; bw = bh * sw / sh; }
     const y = (H - bh) / 2 - (portrait && mode === 'pip' ? 0.12 * H : 0);
     const g = { screen: [(W - bw) / 2, Math.max(m, y), bw, bh], bg: true };
-    if (mode === 'pip') {
-      const s = (pip.size || 0.34) * Math.min(W, H) * (portrait ? 1 : 0.9), mx = 0.05 * Math.min(W, H), cn = pip.corner || 'br';
-      g.cam = [cn.includes('l') ? mx : W - s - mx, cn.includes('t') ? mx + 0.06 * H : H - s - mx - (portrait ? 0.05 * H : 0), s, s];
-    }
+    if (mode === 'pip') g.cam = pipBox(pip, W, H);
     return g;
   }
   if (mode === 'split') return portrait || W === H ? { screen: [0, 0, W, H / 2], cam: [0, H / 2, W, H / 2] } : { screen: [0, 0, W / 2, H], cam: [W / 2, 0, W / 2, H] };
@@ -149,7 +160,10 @@ function preview(t, force) {
   const cam = activeIn(trackOf('cam'), t), scr = activeIn(trackOf('screen'), t);
   const mode = layoutAt(t, !!cam, !!scr);
   const ss = scr ? P.sources[scr.src] : {};
-  const g = geometry(mode, W, H, ss.w || 16, ss.h || 9);
+  const pip = pipAt(t);
+  const sk = ((activeIn(trackOf('layout'), t) || {}).id || 'gap') + mode;
+  if (sk !== preview.sk) { preview.sk = sk; pipScopeSec = null; renderSections(); }   // the playhead moved into another part
+  const g = geometry(mode, W, H, ss.w || 16, ss.h || 9, pip);
   const vS = $('vScreen'), vC = $('vCam');
   const plate = P.frame && g.bg;   // Wispr-style: footage in a soft rounded frame on the plate, no blur (mirrors the export)
   if (scr && g.screen) {
@@ -174,10 +188,11 @@ function preview(t, force) {
   } else bg.hidden = true;
   if (cam && g.cam) {
     $('slotCam').hidden = false; syncVideo(vC, cam, t, true);
-    const circle = mode === 'pip' && (P.pip?.shape || 'circle') === 'circle';
+    const circle = mode === 'pip' && (pip.shape || 'circle') === 'circle';
     place($('slotCam'), g.cam, mode === 'pip' ? (circle ? '50%' : 0.12 * g.cam[2] * K + 'px') : '0');
     vC.style.objectFit = 'cover';
     $('slotCam').style.boxShadow = mode === 'pip' ? '0 6px 24px rgba(0,0,0,.35)' : 'none';
+    $('slotCam').classList.toggle('movable', mode === 'pip');
   } else { $('slotCam').hidden = true; if (!vC.paused) vC.pause(); }
   // overlays, bottom track drawn first
   const live = new Set();
@@ -513,11 +528,23 @@ $('stagewrap').addEventListener('drop', (e) => {
   });
 });
 
-async function upload(file, role, at, extra = {}) {
-  const q = new URLSearchParams({ role, name: file.name || `${role}.webm`, ...(at != null ? { at } : {}), ...extra });
-  status(`Uploading ${file.name || role}…`, true);
+const afterImport = {};   // take file name → clip fields to set once it's on the timeline (e.g. screen-audio volume)
+async function upload(file, role, at, extra = {}, fix = null) {
+  const q = new URLSearchParams({ role, name: file.name || extra.name || `${role}.webm`, ...(at != null ? { at } : {}), ...extra });
+  status(`Uploading ${extra.name || file.name || role}…`, true);
+  if (fix && extra.name) afterImport[extra.name] = fix;
   try { await api(`/api/project/${pid}/upload?${q}`, { method: 'POST', body: file }); }
   catch (e) { toast('Upload failed: ' + e.message); }
+}
+async function applyAfterImport(j) {
+  await load();
+  const list = [];
+  for (const sid of j.result.sources) {
+    const s = P.sources[sid], fix = s && afterImport[s.name]; if (!fix) continue;
+    delete afterImport[s.name]; if (!s.hasAudio) continue;
+    for (const t of P.tracks) for (const c of t.clips) if (c.src === sid) list.push({ op: 'update_clip', id: c.id, ...fix });
+  }
+  if (list.length) ops(list, 'audio levels for the new take');
 }
 
 // ---------- captions + layout panes ----------
@@ -551,14 +578,111 @@ function renderLayoutPane() {
   [...$('layoutDefault').children].forEach((b) => b.classList.toggle('on', b.dataset.m === (P.layout || 'auto') && !trackOf('layout').clips.length));
   [...$('pipCorner').children].forEach((b) => b.classList.toggle('on', b.dataset.c === P.pip.corner));
   [...$('pipShape').children].forEach((b) => b.classList.toggle('on', b.dataset.s === P.pip.shape));
-  $('pipSize').value = P.pip.size;
   swatches(document.querySelector('.swatches[data-k=bg]'), BGS, P.bg, (c) => ops([{ op: 'set', path: 'bg', value: c }]));
+  renderSections();
+}
+// Sections: the layout track split into parts (camera full → bubble → screen). The part under the playhead is
+// either a layout clip or the gap between two, which follows the whole-video layout.
+function sectionAt(t) {
+  const lt = trackOf('layout'); t = Math.min(t, Math.max(0, D.duration - 1e-3));   // the very end belongs to the last part
+  const c = activeIn(lt, t);
+  if (c) return { c, a: c.at, b: end(c) };
+  const a = Math.max(0, ...lt.clips.filter((x) => end(x) <= t + 1e-6).map(end));
+  const nx = lt.clips.filter((x) => x.at > t).map((x) => x.at);
+  return { c: null, a, b: nx.length ? Math.min(...nx) : D.duration };
+}
+let pipScopeSec = null;   // null = automatic: this section if it has its own spot, else the whole video
+function pipSection() {
+  const { c } = sectionAt(T);
+  if (!c || trackOf('layout').clips.length < 2 && !c.pip) return null;
+  const sec = pipScopeSec ?? !!c.pip;
+  return sec ? c : null;
+}
+function renderSections() {
+  const sc = sectionAt(T), lt = trackOf('layout'), n = lt.clips.length;
+  const mode = layoutAt(T + 1e-3, !!activeIn(trackOf('cam'), T), !!activeIn(trackOf('screen'), T));
+  $('secInfo').textContent = n ? `This part: ${fmt(sc.a)}–${fmt(sc.b)}` : 'One part: the whole video';
+  [...$('secMode').children].forEach((b) => b.classList.toggle('on', !!sc.c && b.dataset.m === sc.c.mode));
+  const pipped = mode === 'pip', inSec = !!sc.c && (n > 1 || !!sc.c.pip);
+  $('pipScopeRow').hidden = !(pipped && inSec);
+  const ps = pipSection(), pip = ps ? { ...P.pip, ...ps.pip } : P.pip;
+  [...$('pipScope').children].forEach((b) => b.classList.toggle('on', (b.dataset.s === 'sec') === !!ps));
+  [...$('pipCorner').children].forEach((b) => b.classList.toggle('on', pip.x == null && b.dataset.c === pip.corner));
+  [...$('pipShape').children].forEach((b) => b.classList.toggle('on', b.dataset.s === (pip.shape || 'circle')));
+  if (document.activeElement !== $('pipSize')) $('pipSize').value = pip.size || P.pip.size;
+  $('pipHint').textContent = !pipped ? 'Pick Bubble for this part to place the camera over the screen.'
+    : pip.x != null ? `Placed by hand${ps ? ' for this part' : ''}. Drag it on the preview, or pick a corner.` : 'Drag the bubble on the preview to place it. It snaps to the corners and safe margins.';
+}
+function setPip(patch, label) {   // whole video, or the section under the playhead when "This section" is on
+  const ps = pipSection(), clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v != null));
+  if (ps) return ops([{ op: 'update_clip', id: ps.id, pip: clean({ ...(ps.pip || {}), ...patch }) }], label || 'bubble for this part');
+  return ops([{ op: 'set', path: 'pip', value: clean({ ...P.pip, ...patch }) }], label || 'bubble');
 }
 $('layoutDefault').onclick = (e) => { const m = e.target.dataset.m; if (m) ops([{ op: 'layout', mode: m }], `layout ${LAYOUT_NAMES[m]}`); };
-$('pipCorner').onclick = (e) => { const c = e.target.dataset.c; if (c) ops([{ op: 'set', path: 'pip.corner', value: c }]); };
-$('pipShape').onclick = (e) => { const s = e.target.dataset.s; if (s) ops([{ op: 'set', path: 'pip.shape', value: s }]); };
-$('pipSize').addEventListener('input', (e) => { P.pip.size = +e.target.value; preview(T, true); });
-$('pipSize').addEventListener('change', (e) => ops([{ op: 'set', path: 'pip.size', value: +e.target.value }]));
+$('pipCorner').onclick = (e) => { const c = e.target.dataset.c; if (c) setPip({ corner: c, x: null, y: null }); };
+$('pipShape').onclick = (e) => { const s = e.target.dataset.s; if (s) setPip({ shape: s }); };
+$('pipSize').addEventListener('input', (e) => { pipDrag = { ...(pipDrag || {}), size: +e.target.value }; preview(T, true); });
+$('pipSize').addEventListener('change', (e) => setPip({ size: +e.target.value }));
+$('pipScope').onclick = (e) => { const s = e.target.dataset.s; if (!s) return; pipScopeSec = s === 'sec'; renderSections(); };
+$('secSplit').onclick = () => {
+  const sc = sectionAt(T), t = fr(T);
+  if (t <= sc.a + 0.1 || t >= sc.b - 0.1) return toast('Move the playhead inside a part to split it');
+  if (sc.c) return ops([{ op: 'split', at: t, tracks: [trackOf('layout').id] }], 'split section');
+  const m = P.layout || 'auto';
+  ops([{ op: 'layout', mode: m, start: fr(sc.a), end: t }, { op: 'layout', mode: m, start: t, end: fr(sc.b) }], 'split section');
+};
+$('secMode').onclick = (e) => {
+  const m = e.target.dataset.m; if (!m) return;
+  const sc = sectionAt(T);
+  if (!sc.c && sc.b - sc.a < 0.05) return toast('Move the playhead inside the video first');
+  if (sc.c) return ops([{ op: 'update_clip', id: sc.c.id, mode: m }], `layout ${LAYOUT_NAMES[m]} for this part`);
+  if (!trackOf('layout').clips.length) return ops([{ op: 'layout', mode: m }], `layout ${LAYOUT_NAMES[m]}`);
+  ops([{ op: 'layout', mode: m, start: fr(sc.a), end: fr(sc.b) }], `layout ${LAYOUT_NAMES[m]} for this part`);
+};
+
+// drag the bubble on the stage: free x/y, snapping to the corners, the centre lines and the safe margins
+function snapPip(cx, cy, s, W, H) {
+  const portrait = H > W, mx = 0.05 * Math.min(W, H), th = 0.03 * Math.min(W, H);
+  const xs = [mx + s / 2, W / 2, W - mx - s / 2], ys = [mx + 0.06 * H + s / 2, H / 2, H - mx - (portrait ? 0.05 * H : 0) - s / 2];
+  let sx = -1, sy = -1;
+  xs.forEach((v, i) => { if (Math.abs(cx - v) < th) { cx = v; sx = i; } });
+  ys.forEach((v, i) => { if (Math.abs(cy - v) < th) { cy = v; sy = i; } });
+  cx = clamp(cx, s / 2, W - s / 2); cy = clamp(cy, s / 2, H - s / 2);
+  const corner = sx !== 1 && sx >= 0 && sy !== 1 && sy >= 0 ? (sy === 0 ? 't' : 'b') + (sx === 0 ? 'l' : 'r') : null;
+  return { cx, cy, sx, sy, corner, xs, ys };
+}
+let bubDrag = null;
+$('stage').addEventListener('pointerdown', (e) => {
+  const sc = $('slotCam'); if (sc.hidden || !sc.classList.contains('movable')) return;
+  const r = sc.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;
+  e.preventDefault(); e.stopPropagation(); $('stage').setPointerCapture(e.pointerId);
+  const st = $('stage').getBoundingClientRect();
+  bubDrag = { dx: (e.clientX - (r.left + r.width / 2)) / K, dy: (e.clientY - (r.top + r.height / 2)) / K, st, moved: false, s: r.width / K };
+  if (playing) play(false);
+  sc.classList.add('dragging');
+}, true);
+$('stage').addEventListener('pointermove', (e) => {
+  if (!bubDrag) return;
+  const [W, H] = SIZES[P.aspect], st = bubDrag.st;
+  const sn = snapPip((e.clientX - st.left) / K - bubDrag.dx, (e.clientY - st.top) / K - bubDrag.dy, bubDrag.s, W, H);
+  bubDrag.moved = true; bubDrag.sn = sn;
+  pipDrag = { ...(pipDrag || {}), x: sn.cx / W, y: sn.cy / H };
+  const gx = $('gX'), gy = $('gY');
+  gx.hidden = sn.sx < 0; gy.hidden = sn.sy < 0;
+  if (sn.sx >= 0) gx.style.left = sn.xs[sn.sx] * K + 'px';
+  if (sn.sy >= 0) gy.style.top = sn.ys[sn.sy] * K + 'px';
+  preview(T, true);
+});
+function endBubDrag() {
+  if (!bubDrag) return;
+  const d = bubDrag; bubDrag = null; $('slotCam').classList.remove('dragging'); $('gX').hidden = $('gY').hidden = true;
+  if (!d.moved || !d.sn) return;
+  const [W, H] = SIZES[P.aspect], sn = d.sn;
+  setPip(sn.corner ? { corner: sn.corner, x: null, y: null } : { x: +(sn.cx / W).toFixed(4), y: +(sn.cy / H).toFixed(4) }, sn.corner ? `bubble ${sn.corner}` : 'moved the bubble');
+  setTimeout(() => { if (!bubDrag && pipDrag) { pipDrag = null; preview(T, true); } }, 2500);   // the reload normally clears it sooner
+}
+$('stage').addEventListener('pointerup', endBubDrag);
+$('stage').addEventListener('pointercancel', endBubDrag);
 $('sideTabs').onclick = (e) => { const t = e.target.dataset.tab; if (!t) return; [...$('sideTabs').children].forEach((b) => b.classList.toggle('on', b === e.target)); document.querySelectorAll('.pane').forEach((p) => p.classList.toggle('on', p.dataset.pane === t)); };
 
 // ---------- inspector ----------
@@ -664,6 +788,7 @@ function onJob(j) {
   else {
     status(j.kind === 'import' ? 'Imported' : 'Done');
     if (j.kind === 'import' && j.result?.sources?.length) { toast(j.result.resumed ? 'Recovered a take that was still importing' : 'Added to the timeline'); savedBar(j.result.saved?.[0]); }
+    if (j.kind === 'import' && Object.keys(afterImport).length) applyAfterImport(j);
   }
 }
 
@@ -731,15 +856,19 @@ const HINTS = {
   cam: 'Adds a camera take to the end of the timeline. Do the screen part later if you like.',
   screen: () => `Records the screen on its own and drops it at ${fmt(T)} (the playhead), so it lines up with what you said.`,
 };
-function setWhat(w) { what = w; [...$('rWhat').children].forEach((b) => b.classList.toggle('on', b.dataset.w === w)); const x = HINTS[w]; $('rHint').textContent = typeof x === 'function' ? x() : x; $('camOn').hidden = w === 'screen' || !!camStream; if (w === 'screen') stopPreview(); }
+function setWhat(w) {
+  what = w; [...$('rWhat').children].forEach((b) => b.classList.toggle('on', b.dataset.w === w)); const x = HINTS[w]; $('rHint').textContent = typeof x === 'function' ? x() : x; $('camOn').hidden = w === 'screen' || !!camStream; if (w === 'screen') stopPreview();
+  $('rScrAudioRow').hidden = w === 'cam'; $('rMicRow').hidden = w !== 'screen'; $('rFloatRow').hidden = w !== 'both';
+  floatBtn();
+}
 $('rWhat').onclick = (e) => e.target.dataset.w && !rec0 && setWhat(e.target.dataset.w);
 async function startPreview() {
   if (what === 'screen') { stopPreview(); return; }
   if (camStream) return;
-  try { camStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: true }, video: { width: { ideal: 1920 }, height: { ideal: 1080 } } }); $('rCam').srcObject = camStream; $('rCam').play(); $('camOn').hidden = true; }
+  try { camStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true, autoGainControl: true }, video: { width: { ideal: 1920 }, height: { ideal: 1080 } } }); $('rCam').srcObject = camStream; $('rCam').play(); $('camOn').hidden = true; floatBtn(); }
   catch (e) { $('rHint').textContent = 'Camera blocked: allow it in the browser to record yourself. (' + e.message + ')'; }
 }
-function stopPreview() { if (camStream && !rec0) { camStream.getTracks().forEach((t) => t.stop()); camStream = null; $('rCam').srcObject = null; } $('camOn').hidden = what === 'screen'; }
+function stopPreview() { if (camStream && !rec0) { closeBubble(); camStream.getTracks().forEach((t) => t.stop()); camStream = null; $('rCam').srcObject = null; } $('camOn').hidden = what === 'screen'; floatBtn(); }
 $('camOn').onclick = startPreview;
 
 let scriptTimer = 0;
@@ -835,33 +964,122 @@ function listen(on) {
 }
 $('rVoice').onchange = () => listen($('rVoice').checked && !!rec0);
 
-function pickType() { for (const t of ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']) if (MediaRecorder.isTypeSupported(t)) return t; return ''; }
+function pickType(audioOnly) {
+  const list = audioOnly ? ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'] : ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
+  for (const t of list) if (MediaRecorder.isTypeSupported(t)) return t; return '';
+}
+
+// ---- the floating camera: a small always-on-top window with your face, a rec dot, the timer and Stop ----
+// Document Picture-in-Picture where Chrome has it, else the video element's own picture-in-picture.
+let bub = null;
+function floatBtn() {
+  const on = !!camStream && what !== 'screen';
+  $('btnFloat').hidden = !on || !!bub; $('rFloating').hidden = !bub;
+}
+const BUB_CSS = `html,body{margin:0;height:100%;background:#1A1A1A;overflow:hidden;font:500 13px/1 Figtree,Helvetica,Arial,sans-serif;color:#FFFFEB;-webkit-font-smoothing:antialiased}
+.b{position:absolute;inset:0;display:grid;grid-template-rows:1fr auto;gap:8px;padding:10px}
+.f{position:relative;min-height:0;display:grid;place-items:center;container-type:size}
+.f video{width:min(100cqw,100cqh);height:min(100cqw,100cqh);object-fit:cover;transform:scaleX(-1);border-radius:50%;box-shadow:0 6px 24px rgba(0,0,0,.45),0 0 0 2px rgba(255,255,235,.14);background:#000}
+.f.rounded video{border-radius:18%}
+.bar{display:flex;align-items:center;gap:8px;justify-content:center}
+.dot{width:9px;height:9px;border-radius:50%;background:rgba(255,255,235,.4)}
+.dot.on{background:#FF6C4C;box-shadow:0 0 0 4px rgba(255,108,76,.28);animation:p 1.2s infinite}
+@keyframes p{50%{box-shadow:0 0 0 7px rgba(255,108,76,0)}}
+.t{font-variant-numeric:tabular-nums;font-weight:700;min-width:34px}
+button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:5px 12px;background:#FFFFEB;color:#1A1A1A;cursor:pointer}
+button:hover{background:#F0D7FF}`;
+async function openBubble() {
+  if (bub || !camStream) return bub;
+  const shape = P?.pip?.shape === 'rounded' ? 'rounded' : '';
+  if (window.documentPictureInPicture) {
+    const w = await documentPictureInPicture.requestWindow({ width: 220, height: 264 });
+    const d = w.document; d.title = 'Wispr Video · camera';
+    const st = d.createElement('style'); st.textContent = BUB_CSS; d.head.append(st);
+    d.body.innerHTML = `<div class="b"><div class="f ${shape}"><video autoplay muted playsinline></video></div><div class="bar"><i class="dot"></i><span class="t">0:00</span><button>Stop</button></div></div>`;
+    const v = d.querySelector('video'); v.srcObject = camStream; v.play().catch(() => {});
+    d.querySelector('button').onclick = () => (rec0 ? stopRec() : closeBubble());
+    bub = { kind: 'doc', w, dot: d.querySelector('.dot'), clock: d.querySelector('.t'), btn: d.querySelector('button') };
+    w.addEventListener('pagehide', () => { if (bub?.w === w) { bub = null; floatBtn(); } });
+  } else if (document.pictureInPictureEnabled) {
+    const v = $('rCam'); await v.requestPictureInPicture();
+    bub = { kind: 'video' };
+    v.addEventListener('leavepictureinpicture', () => { if (bub?.kind === 'video') { bub = null; floatBtn(); } }, { once: true });
+  } else throw new Error('this browser can’t float a window');
+  bubState(); floatBtn(); return bub;
+}
+function closeBubble() {
+  if (!bub) return; const b = bub; bub = null;
+  try { if (b.kind === 'doc') b.w.close(); else if (document.pictureInPictureElement) document.exitPictureInPicture(); } catch {}
+  floatBtn();
+}
+function bubState() {
+  if (bub?.kind !== 'doc') return;
+  bub.dot.classList.toggle('on', !!rec0); bub.clock.textContent = $('rClock').textContent; bub.btn.textContent = rec0 ? 'Stop' : 'Close';
+}
+$('btnFloat').onclick = () => openBubble().catch((e) => toast('Couldn’t float the camera: ' + e.message));
+
+// what the share brought: screen audio on/off, and whether the floating camera will show up in the screen take
+function shareNote(scr, wantAudio) {
+  const has = scr.getAudioTracks().length > 0, surf = scr.getVideoTracks()[0]?.getSettings?.().displaySurface;
+  const pill = $('rAudio'); pill.hidden = false;
+  pill.className = 'apill ' + (has ? 'on' : wantAudio ? 'off' : '');
+  pill.querySelector('span').textContent = has ? 'Screen audio on' : wantAudio
+    ? (surf === 'window' ? 'Screen audio off: this Chrome can’t take a window’s sound. Share a tab or the whole screen for audio.' : 'Screen audio off: tick “Share audio” in Chrome’s picker next time.')
+    : 'Screen audio off';
+  const note = $('rFloatNote');
+  if (bub) {
+    note.hidden = false;
+    note.textContent = surf === 'monitor' ? 'You’re sharing the whole screen, so the floating camera shows in the screen take too. Share a window or tab to keep it out, or drag it out of the way.'
+      : 'The floating camera stays out of the screen take: you shared a ' + (surf === 'browser' ? 'tab' : surf === 'window' ? 'window' : 'window or tab') + '.';
+  } else note.hidden = true;
+  return has;
+}
+async function shareScreen(wantAudio, preferWindow) {
+  const audio = wantAudio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false } : false;
+  const base = { video: { frameRate: 30, ...(preferWindow ? { displaySurface: 'window' } : {}) }, audio, selfBrowserSurface: 'exclude', surfaceSwitching: 'include' };
+  try { return await navigator.mediaDevices.getDisplayMedia({ ...base, systemAudio: wantAudio ? 'include' : 'exclude', windowAudio: wantAudio ? 'system' : 'exclude' }); }
+  catch (e) { if (e.name !== 'TypeError') throw e; return navigator.mediaDevices.getDisplayMedia(base); }   // an older Chrome that doesn't know an option
+}
+let recWhat = 'both', recMeta = {};
 async function startRec() {
   if (rec0) return;
   try {
-    const sets = [];
+    const sets = []; recWhat = what; recMeta = {};
     if (what !== 'screen') { await startPreview(); if (!camStream) throw new Error('no camera'); sets.push({ role: 'cam', stream: camStream }); }
+    const float = what === 'both' && $('rFloat').checked;
+    if (float && !bub) await openBubble().catch((e) => toast('Couldn’t float the camera: ' + e.message + '. Press Float camera once recording starts.', 6000));   // before the picker, while the click still counts
     if (what !== 'cam') {
-      const scr = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: false, selfBrowserSurface: 'exclude' });
+      const wantAudio = $('rScrAudio').checked;
+      const scr = await shareScreen(wantAudio, !!bub);
       streams.push(scr); scr.getVideoTracks()[0].addEventListener('ended', () => rec0 && stopRec());
-      const mic = what === 'screen' ? null : camStream;
-      sets.push({ role: 'screen', stream: new MediaStream([...scr.getVideoTracks(), ...(mic ? [] : [])]) });
-    }
+      recMeta.screenAudio = shareNote(scr, wantAudio);
+      sets.push({ role: 'screen', stream: new MediaStream([...scr.getVideoTracks(), ...scr.getAudioTracks()]) });
+      if (what === 'screen' && $('rMic').checked) {   // screen-only take: the mic is its own source, not mixed into the screen
+        try {
+          const mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+          streams.push(mic); sets.push({ role: 'mic', stream: mic, audioOnly: true }); recMeta.mic = true;
+        } catch (e) { toast('Mic blocked, recording the screen without it: ' + e.message, 6000); }
+      }
+    } else $('rAudio').hidden = true;
     await countdown();
-    const type = pickType();
-    recs = sets.map((s) => { const r = new MediaRecorder(s.stream, type ? { mimeType: type, videoBitsPerSecond: 6e6 } : {}); r.chunks = []; r.role = s.role; r.ondataavailable = (e) => e.data.size && r.chunks.push(e.data); r.start(1000); return r; });
+    recs = sets.map((s) => {
+      const type = pickType(s.audioOnly), opt = type ? { mimeType: type } : {};
+      if (!s.audioOnly) opt.videoBitsPerSecond = 6e6;
+      const r = new MediaRecorder(s.stream, opt); r.chunks = []; r.role = s.role; r.ondataavailable = (e) => e.data.size && r.chunks.push(e.data); r.start(1000); return r;
+    });
     rec0 = performance.now(); marks = []; heardAll = []; interim = []; show(0);
     $('recDot').classList.add('on'); $('btnRec').disabled = true; $('btnStop').disabled = false;
     if (what !== 'screen') listen(true);
-    tickRec();
+    bubState(); tickRec();
   } catch (e) { toast('Could not start: ' + e.message); streams.forEach((s) => s.getTracks().forEach((t) => t.stop())); streams = []; }
 }
-function tickRec() { if (!rec0) return; const s = Math.floor((performance.now() - rec0) / 1000); $('rClock').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; setTimeout(tickRec, 250); }
+function tickRec() { if (!rec0) return; const s = Math.floor((performance.now() - rec0) / 1000); $('rClock').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; bubState(); setTimeout(tickRec, 250); }
 function countdown() { return new Promise((res) => { let n = 3; const c = $('count'); c.hidden = false; c.textContent = n; const it = setInterval(() => { n--; if (n) c.textContent = n; else { clearInterval(it); c.hidden = true; res(); } }, 800); }); }
 async function stopRec() {
   if (!rec0) return;
   const dur = (performance.now() - rec0) / 1000; rec0 = 0; listen(false);
   $('recDot').classList.remove('on'); $('btnStop').disabled = true; $('btnRec').disabled = false;
+  closeBubble(); $('rFloatNote').hidden = true;
   await Promise.all(recs.map((r) => new Promise((res) => { r.onstop = res; r.stop(); })));
   streams.forEach((s) => s.getTracks().forEach((t) => t.stop())); streams = [];
   const take = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
@@ -869,9 +1087,14 @@ async function stopRec() {
   const at = what === 'screen' ? fr(T) : fr(camEnd);
   setMode('edit');
   toast(`Got it: ${Math.round(dur)}s. Adding it to the timeline…`, 4000);
+  // screen audio sits under the voice (0.5) when there's a mic; on its own it plays at full. The mic of a
+  // screen-only take lands as its own clip (b-roll track, audio only) at the same time, so the two can be mixed.
+  const scrVol = recWhat === 'cam' ? 0 : recWhat === 'screen' && !recMeta.mic ? 1 : 0.5;
   for (const r of recs) {
     const blob = new Blob(r.chunks, { type: r.mimeType });
-    await upload(blob, r.role, at, { take, name: `${r.role}-${take}.webm`, ...(r.role === 'cam' ? { marks: JSON.stringify(marks) } : {}) });
+    const role = r.role === 'mic' ? 'media' : r.role, name = `${r.role}-${take}.webm`;
+    const fix = r.role === 'mic' ? { volume: 1 } : r.role === 'screen' && recMeta.screenAudio ? { volume: scrVol } : null;
+    await upload(blob, role, at, { take, name, ...(r.role === 'cam' ? { marks: JSON.stringify(marks) } : {}) }, fix);
   }
   recs = [];
 }
