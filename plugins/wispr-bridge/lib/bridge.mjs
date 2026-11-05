@@ -21,16 +21,17 @@ export const INTENTS = ['file.find', 'wish.run', 'convert', 'review.note', 'guid
 // ── process helper ──────────────────────────────────────────────────────────
 function run(argv, { input, timeoutMs = 600_000, cwd, detached = false } = {}) {
   return new Promise((resolve) => {
-    let out = '', err = ''
+    let out = '', err = '', killed = false
+    const t0 = Date.now()
     let p
     try {
       p = spawn(argv[0], argv.slice(1), { cwd, stdio: [input == null ? 'ignore' : 'pipe', 'pipe', 'pipe'], detached })
-    } catch (e) { return resolve({ code: 127, stdout: '', stderr: String(e) }) }
-    const t = setTimeout(() => { try { p.kill('SIGTERM') } catch {} }, timeoutMs)
+    } catch (e) { return resolve({ code: 127, stdout: '', stderr: String(e), ms: 0 }) }
+    const t = setTimeout(() => { killed = true; try { p.kill('SIGTERM') } catch {} }, timeoutMs)
     p.stdout.on('data', (d) => (out += d))
     p.stderr.on('data', (d) => (err += d))
-    p.on('error', (e) => { clearTimeout(t); resolve({ code: 127, stdout: out, stderr: err + String(e) }) })
-    p.on('close', (code) => { clearTimeout(t); resolve({ code, stdout: out, stderr: err }) })
+    p.on('error', (e) => { clearTimeout(t); resolve({ code: 127, stdout: out, stderr: err + String(e), ms: Date.now() - t0 }) })
+    p.on('close', (code, signal) => { clearTimeout(t); resolve({ code, signal, killed, stdout: out, stderr: err, ms: Date.now() - t0 }) })
     if (input != null) { p.stdin.end(input) }
   })
 }
@@ -41,11 +42,17 @@ function lastJsonLine(s) {
   return null
 }
 
+// The card's own timeout counts from its launch; we wait a generous margin past it, so a slow start on a busy Mac
+// still ends in the card's {"timeout":true} rather than us killing it. When there is no JSON line anyway, say why.
+const MARGIN_S = Number(process.env.WISPR_BRIDGE_MARGIN_S || 90)
 async function card(spec, timeoutS = 600) {
   if (!existsSync(HELPER)) throw Object.assign(new Error('wb-card helper missing: run build.sh'), { code: 3 })
-  const r = await run([HELPER, JSON.stringify(spec)], { timeoutMs: (timeoutS + 15) * 1000 })
+  const r = await run([HELPER, JSON.stringify(spec)], { timeoutMs: (timeoutS + MARGIN_S) * 1000 })
   if (r.code === 2) throw Object.assign(new Error(r.stderr.trim() || 'bad spec'), { code: 2 })
-  return lastJsonLine(r.stdout)
+  const j = lastJsonLine(r.stdout)
+  if (j) return j
+  if (r.killed) return { cancelled: true, timeout: true, reason: 'timeout', detail: `wb-card gave no answer in ${Math.round(r.ms / 1000)}s` }
+  return { cancelled: true, reason: 'helper', detail: (r.stderr || '').trim().slice(-300) || `wb-card exited ${r.signal || 'code ' + r.code} after ${Math.round(r.ms / 1000)}s with no answer` }
 }
 
 // ── presenter ───────────────────────────────────────────────────────────────
@@ -57,7 +64,7 @@ export async function present(spec) {
     typeof o === 'string' ? { label: o } : { label: String(o.label ?? ''), detail: o.detail, image: o.image })
   const timeout = spec.timeout ?? 540
   const r = await card({ ...spec, mode: 'present', options, timeout }, timeout)
-  return r || { cancelled: true, reason: 'helper' }
+  return r
 }
 
 export async function notify(text, { title, ttl = 3, wait = false, at } = {}) {
