@@ -64,7 +64,7 @@ struct Badge: View {
         Text("\(n)").font(W.sans(12, .semibold)).foregroundColor(on ? W.onPrimary : W.vast900)
             .frame(width: 22, height: 22)
             .background(RoundedRectangle(cornerRadius: W.rSM).fill(on ? W.primary : Color.white))
-            .overlay(RoundedRectangle(cornerRadius: W.rSM).stroke(on ? Color.clear : W.border, lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: W.rSM).stroke(on ? Color.white : W.border, lineWidth: on ? 1.5 : 1))
     }
 }
 
@@ -99,7 +99,8 @@ struct PresentView: View {
                 .textFieldStyle(.plain).font(W.sans(13.5)).foregroundColor(W.fg)
                 .padding(.horizontal, 12).frame(height: 36)
                 .background(RoundedRectangle(cornerRadius: W.rMD).fill(Color.white))
-                .overlay(RoundedRectangle(cornerRadius: W.rMD).stroke(focused ? W.vast700 : W.border, lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: W.rMD).stroke(focused ? W.fieldFocus : W.border, lineWidth: 1))
+                .background(RoundedRectangle(cornerRadius: W.rMD + 3).stroke(focused ? W.fieldRing : Color.clear, lineWidth: 3).padding(-2.5))
                 .animation(W.ease, value: focused)
                 .focused($focused)
                 .onSubmit { m.submit() }
@@ -107,10 +108,10 @@ struct PresentView: View {
             HStack(spacing: 12) {
                 // Digits are text in the focused field: "2 ↵" picks, "1 but shorter ↵" picks with a note.
                 HoldToSpeak()
-                Hint(key: m.multi ? "1 3 ↵" : "1–\(max(1, m.opts.count))", what: "to pick")
+                if m.multi { Hint(key: "return", what: "when done") } else { Hint(key: "1–\(max(1, m.opts.count))", what: "to pick") }
                 Spacer()
                 Button("Not now") { emit(["cancelled": true, "reason": "dismissed"]) }
-                    .buttonStyle(WisprButtonStyle(kind: .ghost, height: 30))
+                    .buttonStyle(WisprButtonStyle(kind: .outline, height: 30))
                 if m.multi {
                     Button("Done") { m.finish(m.chosen.isEmpty ? [m.selected] : Array(m.chosen)) }
                         .buttonStyle(WisprButtonStyle(kind: .primary, height: 30))
@@ -159,8 +160,10 @@ struct PresentView: View {
                     Badge(n: i + 1, on: isOn(i)).padding(7)
                 }
                 .frame(width: 156, height: 112)
-                .overlay(RoundedRectangle(cornerRadius: W.rMD)
-                    .stroke(isOn(i) ? W.vast950 : W.border, lineWidth: isOn(i) ? 2 : 1))
+                .overlay(RoundedRectangle(cornerRadius: W.rMD).stroke(W.border, lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: W.rMD + 3)
+                    .stroke(isOn(i) ? W.vast950 : Color.clear, lineWidth: 2).padding(-3.5))
+                .animation(W.ease, value: isOn(i))
                 Text(o.label).font(W.sans(13, .medium)).foregroundColor(W.fg).lineLimit(1)
                 if let d = o.detail, !d.isEmpty {
                     Text(d).font(W.sans(11.5)).foregroundColor(W.fg2).lineLimit(1)
@@ -196,7 +199,7 @@ struct PresentView: View {
                     .padding(.horizontal, 10).padding(.vertical, 9)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: W.rMD).fill(i == m.selected ? W.sand600 : Color.white))
-                    .overlay(RoundedRectangle(cornerRadius: W.rMD).stroke(isOn(i) ? W.vast950 : W.border, lineWidth: 1))
+                    .overlay(RoundedRectangle(cornerRadius: W.rMD).stroke(isOn(i) ? W.vast950 : W.border, lineWidth: isOn(i) ? 1.5 : 1))
                     .animation(W.ease, value: m.selected)
                     .contentShape(Rectangle())
                 }
@@ -224,7 +227,7 @@ struct PillView: View {
     var body: some View {
         HStack(spacing: 10) {
             if m.busy { ProgressView().controlSize(.small).scaleEffect(0.8).tint(W.fg) }
-            else { Circle().fill(W.vast950).frame(width: 7, height: 7) }
+            else { Circle().fill(W.flare).frame(width: 6, height: 6) }
             VStack(alignment: .leading, spacing: 2) {
                 Text((m.title ?? "").isEmpty ? "Wispr Bridge" : m.title!).font(W.sans(12, .bold)).tracking(-0.2).foregroundColor(W.fg)
                 Text(m.text).font(W.sans(13.5)).foregroundColor(W.fg2)
@@ -264,17 +267,21 @@ struct AskView: View {
                     Text(title).font(W.sans(12.5)).foregroundColor(W.fg3).lineLimit(1)
                 }
                 Spacer()
-                HoldToSpeak()
             }
             TextField("", text: $m.text, prompt: Text(placeholder).foregroundColor(W.fg3), axis: .vertical)
-                .textFieldStyle(.plain).font(W.serif(22)).foregroundColor(W.fg)
+                .textFieldStyle(.plain).font(W.sans(15)).foregroundColor(W.fg)
                 .lineLimit(1...4)
+                .padding(.horizontal, 12).padding(.vertical, 10)
+                .background(RoundedRectangle(cornerRadius: W.rMD).fill(Color.white))
+                .overlay(RoundedRectangle(cornerRadius: W.rMD).stroke(focused ? W.fieldFocus : W.border, lineWidth: 1))
+                .background(RoundedRectangle(cornerRadius: W.rMD + 3).stroke(focused ? W.fieldRing : Color.clear, lineWidth: 3).padding(-2.5))
                 .focused($focused)
                 .onSubmit {
                     let t = m.text.trimmingCharacters(in: .whitespacesAndNewlines)
                     if t.isEmpty { emit(["cancelled": true, "reason": "empty"]) } else { emit(["text": t]) }
                 }
             HStack(spacing: 12) {
+                HoldToSpeak()
                 Hint(key: "return", what: "to send")
                 Hint(key: "esc", what: "to close")
                 Spacer()
