@@ -17,10 +17,13 @@ section{padding:40px;min-height:500px}.card{display:inline-block;width:220px;hei
       sendMessage: (m, cb) => { __sent.push(m); setTimeout(() => cb(m.t === 'shot' ? { d: fakeShot() } : m.t === 'sink' ? { ok: false, body: {} } : {}), 10); } },
   };
   window.__data = data;
+  // test only: the extension's shadow root is closed; open it here so the harness can drive the field
+  const attach = Element.prototype.attachShadow; Element.prototype.attachShadow = function (i) { return attach.call(this, { ...i, mode: 'open' }); };
 })();
 </script></head><body>
 <header><h1 id="hero-title">Type at the speed of thought</h1><p class="sub">Voice dictation that works in every app.</p><a class="cta" href="#">Get started</a></header>
 <section><h2>Features</h2><div class="card">Fast</div><div class="card">Accurate</div><div class="card">Private</div></section>
 <section><h2>Pricing</h2><p class="price">$12 / month</p></section>
+<script src="../extension/untrusted.js"></script>
 <script src="../extension/content.js"></script>
 </body></html>

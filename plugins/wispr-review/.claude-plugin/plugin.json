@@ -1,6 +1,6 @@
 {
   "name": "wispr-review",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "displayName": "Wispr Review (made for Wispr)",
   "description": "Review any website by voice: a Chrome extension pins each dictated note to the element under your cursor (crop, selector, URL); this plugin runs the local inbox and gives Claude /wispr-review to read and fix the notes. Unofficial; not affiliated with Wispr.",
   "author": { "name": "sameeeeeeep" },

@@ -32,7 +32,7 @@ async function toggle(tab) {
   await register(list);
   badge(tab.id, tab.url);
   if (on) {
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] }).catch(() => {});
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['untrusted.js', 'content.js'] }).catch(() => {});
     chrome.tabs.sendMessage(tab.id, { t: 'mode', on: true }).catch(() => {});
   } else chrome.tabs.sendMessage(tab.id, { t: 'quit' }).catch(() => {});
 }

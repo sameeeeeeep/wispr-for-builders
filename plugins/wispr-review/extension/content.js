@@ -7,7 +7,7 @@
 // Never touches the microphone: the words come from Wispr's own dictation, typed into the focused field.
 // Selector + crop code reused from portfolio/build/review/extension/content.js.
 (() => {
-  if (window.__wispReview) return;
+  if (window.__wispReview || !window.WRUntrusted) return;
   window.__wispReview = true;
   const PAGE = location.origin + location.pathname;
   const SITE = location.hostname || 'file';
@@ -94,7 +94,7 @@
   // ------------------------------------------------------------ UI in a shadow root (page CSS can't touch it)
   const host = document.createElement('wispr-review');
   host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647';
-  const root = host.attachShadow({ mode: 'open' });
+  const root = host.attachShadow({ mode: 'closed' }); // closed: page scripts can't read or fill the note field
   root.innerHTML = `<style>
     :host{--a:#7c5cff;--bg:#16161d;--fg:#f4f4f8;--mut:#a3a3b5;--line:rgba(255,255,255,.12);font:13px/1.35 -apple-system,BlinkMacSystemFont,"Inter",system-ui,sans-serif;color:var(--fg)}
     *{box-sizing:border-box}
@@ -255,6 +255,7 @@
       rect: { x: Math.round(r.left + sx), y: Math.round(r.top + sy), w: Math.round(r.width), h: Math.round(r.height) },
       viewport, via, shot: crop,
     };
+    Object.assign(n, WRUntrusted.cleanNote(n));  // page-derived fields are cleaned and capped before they're stored
     all.push(n); await store.set(all); notes = all;
     const s = await bg({ t: 'sink', path: '/notes', method: 'POST', body: n });
     if (s?.ok && s.body?.shot_path) { n.shot_path = s.body.shot_path; await store.set(notes); }
@@ -402,28 +403,10 @@
 
   // ------------------------------------------------------------ export
   const slim = (n) => { const { shot, ...rest } = n; return rest; };
-  function markdown(list) {
-    const L = [`# Review notes · ${SITE}`, '', `${list.length} notes, left with Wispr Review (made for Wispr). Each note is pinned to an element.`, ''];
-    for (const n of list) {
-      L.push(`## ${n.n}. ${n.text.split('\n')[0].slice(0, 90)}${n.status === 'done' ? ' (done)' : ''}`, '');
-      if (n.text.includes('\n') || n.text.length > 90) L.push(n.text, '');
-      L.push(`- Page: ${n.url}`, `- Element: \`${n.selector}\`${n.element?.text ? ` ("${n.element.text.slice(0, 80)}")` : ''}`);
-      if (n.element?.section) L.push(`- Section: ${n.element.section}`);
-      L.push(`- Viewport: ${n.viewport.w}x${n.viewport.h}, scrolled ${n.viewport.scroll_y}px`);
-      if (n.shot_path) L.push(`- Crop: ${n.shot_path}`, '', `![note ${n.n}](${n.shot_path})`);
-      L.push('');
-    }
-    return L.join('\n');
-  }
-  function claudePrompt(list, sinkUp) {
-    return [
-      `I reviewed ${SITE} by voice and left ${list.length} notes, each pinned to an element. Work through them in this codebase:`,
-      `for each note find the element (selector, its text, the page URL), make the change, then reply with what you changed per note number.`,
-      `If a note is unclear or the element can't be found, say so instead of guessing.`,
-      sinkUp ? `The notes and screenshot crops are also on disk: run \`~/.wispr-review/bin/wispr-review notes\` (crops in ~/.wispr-review/shots/). Mark one done with \`~/.wispr-review/bin/wispr-review done <n>\`.` : '',
-      '', '```json', JSON.stringify(list.map(slim), null, 1), '```',
-    ].filter((x) => x !== '').join('\n');
-  }
+  // what goes to Claude lives in untrusted.js: the user's notes are the requests, page-derived fields go in a
+  // labelled untrusted block, cleaned and capped
+  const markdown = (list) => WRUntrusted.markdown(list.map(slim));
+  const claudePrompt = (list, sinkUp) => WRUntrusted.claudePrompt(list.map(slim), { sinkUp });
   async function copy(text) {
     try { await navigator.clipboard.writeText(text); return true; } catch { /* fall back */ }
     const t = document.createElement('textarea'); t.value = text; t.style.cssText = 'position:fixed;opacity:0'; document.body.append(t); t.select();

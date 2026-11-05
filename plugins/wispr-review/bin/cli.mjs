@@ -11,8 +11,10 @@ import { join, dirname, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { spawn, execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 
 const PKG = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const U = createRequire(import.meta.url)(join(PKG, 'extension', 'untrusted.js'));
 const HOME = process.env.WISPR_REVIEW_HOME || join(homedir(), '.wispr-review');
 const FILE = join(HOME, 'notes.json'), MD = join(HOME, 'notes.md'), SHOTS = join(HOME, 'shots');
 const PORT = Number(process.env.WISPR_REVIEW_PORT || 4377);
@@ -24,23 +26,8 @@ const HOSTS = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`]);
 
 const load = () => { try { return JSON.parse(readFileSync(FILE, 'utf8')); } catch { return []; } };
 const save = (ns) => { writeFileSync(FILE + '.tmp', JSON.stringify(ns, null, 1)); renameSync(FILE + '.tmp', FILE); writeFileSync(MD, markdown(ns.filter((n) => n.status !== 'done'))); };
-function markdown(list) {
-  if (!list.length) return 'No open review notes.\n';
-  const L = [];
-  for (const site of [...new Set(list.map((n) => n.site))]) {
-    const ns = list.filter((n) => n.site === site).sort((a, b) => a.n - b.n);
-    L.push(`# Review notes · ${site} (${ns.length})`, '');
-    for (const n of ns) {
-      L.push(`## ${n.n}. ${n.text}${n.status === 'done' ? ' (done)' : ''}`, `- id: ${n.id}`, `- Page: ${n.url}`, `- Element: \`${n.selector}\`${n.element?.text ? ` ("${n.element.text.slice(0, 80)}")` : ''}`);
-      if (n.element?.section) L.push(`- Section: ${n.element.section}`);
-      if (n.viewport) L.push(`- Viewport: ${n.viewport.w}x${n.viewport.h}, scrolled ${n.viewport.scroll_y}px`);
-      if (n.shot_path) L.push(`- Crop: ${n.shot_path}`);
-      if (n.done_note) L.push(`- Done: ${n.done_note}`);
-      L.push('');
-    }
-  }
-  return L.join('\n');
-}
+// page-derived fields are untrusted: the same split as the extension's Send to Claude (extension/untrusted.js)
+const markdown = (list) => U.markdown(list, { ids: true });
 // by id, or by number; a number that exists on more than one site needs --site
 function find(ns, key, site) {
   const byId = ns.find((n) => n.id === key); if (byId) return { n: byId };
@@ -77,7 +64,8 @@ function serve() {
           shot_path = join(SHOTS, `${b.site || 'site'}-${b.n}-${b.id}.jpg`.replace(/[^\w.\-]/g, '_'));
           writeFileSync(shot_path, Buffer.from(b.shot.split(',')[1], 'base64'));
         }
-        const { shot, ...n } = b; n.shot_path = shot_path || n.shot_path || null;
+        const { shot, ...rest } = b; const n = U.cleanNote(rest);
+        n.shot_path = shot_path || U.shotOf(rest) || null;  // never a path the request made up (delete removes it)
         const i = ns.findIndex((x) => x.id === n.id);
         if (i >= 0) ns[i] = { ...ns[i], ...n }; else ns.push(n);
         save(ns); notify(`Note ${n.n} saved for Claude`);

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Wispr Review (made for Wispr)",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Review any website by voice: point, hold your Wispr key and talk. Each note pins to the element under the cursor with a crop, selector and URL. Unofficial; not affiliated with Wispr.",
   "permissions": [
     "scripting",

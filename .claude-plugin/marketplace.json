@@ -10,7 +10,7 @@
       "description": "Find any file on your Mac by voice. Pick from thumbnails by saying \"two\"; it pastes, reveals, opens or copies it. Spotlight runs locally." },
     { "name": "wispr-wish", "source": "./plugins/wispr-wish", "version": "0.1.0", "category": "productivity",
       "description": "Say what you want done to a file: \"make this a PDF\", \"compress this video for WhatsApp\", \"transcribe this\". Plus tiny apps on request: timer, bill split, QR." },
-    { "name": "wispr-review", "source": "./plugins/wispr-review", "version": "0.1.0", "category": "development",
+    { "name": "wispr-review", "source": "./plugins/wispr-review", "version": "0.1.1", "category": "development",
       "description": "Review any website by voice. A Chrome extension pins each dictated note to the element under your cursor; Claude reads the notes and fixes them." },
     { "name": "wispr-pm", "source": "./plugins/wispr-pm", "version": "0.1.0", "category": "productivity",
       "description": "Task boards by voice: \"park this for the portfolio\", \"what's next\", \"split this into tasks\", \"what's waiting on me\"." },
