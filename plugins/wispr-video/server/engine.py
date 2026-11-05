@@ -937,12 +937,12 @@ def _ev(x): return int(round(x / 2) * 2)
 
 
 def segments(p):
-    total = duration(p)
-    pts = {0.0, fr(total)}
+    total = fr(duration(p))   # snap the end too: a take that isn't a whole number of frames long rounds up past it
+    pts = {0.0, total}
     for t in p['tracks']:
         for c in t['clips']:
             pts.add(fr(c['at'])); pts.add(fr(clip_end(c)))
-    pts = sorted(x for x in pts if 0 <= x <= total)
+    pts = sorted(x for x in pts if 0 <= x <= total + 1e-6)
     return [(a, b) for a, b in zip(pts, pts[1:]) if b - a >= 1 / FPS - 1e-6]
 
 
@@ -1050,7 +1050,9 @@ def _segment_cmd(p, a, b, W, H, out, work, still=False):
         place(si, (m, m, W - 2 * m, H - 2 * m, 'contain'), 'scr', radius=fr_.get('radius', 0.025),
               aspect=(scr_src.get('w') or 16, scr_src.get('h') or 9), clip=scr, shadow=fr_.get('shadow', True))
     elif si is not None and g.get('bg'):
-        fc.append(f"[{si}:v]setpts=PTS-STARTPTS,split=2[sbg][sfg]")
+        cr = _box(scr['crop'], 'crop') if scr.get('crop') else None   # the punch-in applies here too, not just on the plate
+        pre = f"crop=iw*{cr['w']}:ih*{cr['h']}:iw*{cr['x']}:ih*{cr['y']}," if cr else ''
+        fc.append(f"[{si}:v]setpts=PTS-STARTPTS,{pre}split=2[sbg][sfg]")
         fc.append(f"[sbg]fps={FPS},scale={W // 8}:{H // 8}:force_original_aspect_ratio=increase,crop={W // 8}:{H // 8},boxblur=6:2,eq=brightness=-0.12:saturation=0.8,scale={W}:{H},setsar=1[sbgb]")
         fc.append(f"[{last}][sbgb]overlay=0:0[bgo]"); last = 'bgo'
         x, y, w, h, _ = g['screen']; w, h = _ev(w), _ev(h)
