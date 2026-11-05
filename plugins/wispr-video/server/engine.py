@@ -41,6 +41,66 @@ def slug(s): return re.sub(r'[^a-z0-9]+', '-', (s or 'video').lower()).strip('-'
 def rid(prefix): return prefix + uuid.uuid4().hex[:6]
 
 
+MOVIES = Path(os.environ.get('WISPR_VIDEO_MOVIES') or Path.home() / 'Movies' / 'Wispr Video')
+
+
+def movies_dir(p):
+    """Where a person finds their takes and exports: ~/Movies/Wispr Video/<project title>/."""
+    name = re.sub(r'[/:\\\x00-\x1f]+', ' ', str(p.get('title') or p.get('id') or 'Video')).strip(' .')[:80] or 'Video'
+    d = MOVIES / name; d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def readable_copy(p, src, label, ext):
+    """Copy a finished take or export to the Movies folder under a human name, e.g. 'Take 1 – 5 Nov 12.48 (camera).webm'."""
+    d = movies_dir(p)
+    stamp = time.strftime('%-d %b %H.%M')
+    base = f'{label} – {stamp}'
+    out = d / f'{base}{ext}'; n = 2
+    while out.exists(): out = d / f'{base} ({n}){ext}'; n += 1
+    shutil.copy2(src, out)
+    return out
+
+
+def revealable(pid, path):
+    """Files Finder may be asked to show: inside the project, or inside its Movies folder."""
+    if within(pid, path): return True
+    try: Path(path).resolve().relative_to(MOVIES.resolve()); return True
+    except ValueError: return False
+
+
+INBOX_ROLES = ('cam', 'screen', 'media')
+
+
+def ingest_inbox(pid, progress=None):
+    """Attach takes waiting in the project's inbox (an upload whose import was interrupted, say by a restart).
+    Each upload has a sidecar <file>.json with its role and timing; only files inside this project's inbox are read."""
+    inbox = (pdir(pid) / 'inbox').resolve(); done = []
+    with _ingest_locks.setdefault(pid, threading.Lock()):   # camera + screen arrive together: one ingest at a time
+        done = _ingest(pid, inbox, progress)
+    return done
+
+
+_ingest_locks = {}
+
+
+def _ingest(pid, inbox, progress):
+    done = []
+    for meta in sorted(inbox.glob('*.json')):
+        f = meta.with_suffix('')
+        if not f.exists() or not within(pid, f) or f.parent != inbox: meta.unlink(missing_ok=True); continue
+        m = json.loads(meta.read_text())
+        role = m.get('role') if m.get('role') in INBOX_ROLES else 'media'
+        at = m.get('at'); at = None if at is None else _num(at, 0, 1e6, 'at')
+        if progress: progress('importing ' + role, 0.2)
+        sid = import_media(pid, f, role, at=at, take=m.get('take'), marks=m.get('marks'), recorded_at=m.get('t'), name=m.get('name'))
+        if role == 'cam':
+            if progress: progress('transcribing', 0.6)
+            transcribe(pid, sid)
+        f.unlink(missing_ok=True); meta.unlink(missing_ok=True); done.append(sid)
+    return done
+
+
 def default_project(title, aspect):
     return {
         'id': '', 'title': title, 'rev': 0, 'aspect': aspect, 'fps': FPS, 'created': time.time(),
@@ -620,6 +680,10 @@ def import_media(pid, path, role='media', at=None, take=None, marks=None, record
         else: c['volume'] = 1 if role == 'cam' else 0
         if role != 'media' or kind != 'image' or at is not None:
             t['clips'].append(c)
+        if role in ('cam', 'screen') and ext not in IMAGE_EXT:
+            n = 1 + len({s.get('take') for s in p['sources'].values() if s['kind'] == role and s['id'] != sid})
+            kept = readable_copy(p, path, f"Take {n}", f" ({'camera' if role == 'cam' else 'screen'}){ext}")
+            p['sources'][sid]['saved'] = str(kept)
         sort_tracks(p)
         save(pid, p, f'imported {path.name} as {role}')
     return sid
@@ -1073,11 +1137,19 @@ def render(pid=None, aspect=None, out=None, progress=None):
         if r.returncode: raise RuntimeError('final pass failed: ' + r.stderr[-800:])
         prog('done', 1)
         with _lock:
-            p = load(pid); p['exports'].append({'file': str(out), 'aspect': aspect, 'at': time.time(), 'duration': round(duration(p), 2)})
+            p = load(pid)
+            kept = readable_copy(p, out, f"{p['title']} – {aspect.replace(':', '×')}", '.mp4')
+            p['exports'].append({'file': str(out), 'saved': str(kept), 'aspect': aspect, 'at': time.time(), 'duration': round(duration(p), 2)})
             save(pid, p, f'exported {aspect}')
         return out
     finally:
         shutil.rmtree(work, ignore_errors=True)
+
+
+def last_saved(pid, source=None):
+    p = load(pid)
+    if source: return p['sources'].get(source, {}).get('saved')
+    return (p['exports'][-1].get('saved') if p['exports'] else None)
 
 
 def still(pid=None, t=0.0, aspect=None, out=None):

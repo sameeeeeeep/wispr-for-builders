@@ -231,15 +231,17 @@ class H(BaseHTTPRequestHandler):
                     b = self.jbody()
                     def ex(pr):
                         out = E.render(pid, b.get('aspect'), progress=pr)
-                        return {'file': str(out), 'url': f'/media/{pid}/exports/{out.name}'}
+                        return {'file': str(out), 'saved': E.last_saved(pid), 'url': f'/media/{pid}/exports/{out.name}'}
                     return self.send(200, job('export', pid, ex))
                 if act == 'claude':
                     text = self.jbody().get('text', '').strip()
                     if not text: return self.send(400, {'error': 'say something first'})
                     return self.send(200, job('claude', pid, lambda pr: run_claude(pid, text, pr)))
-                if act == 'reveal':   # only files inside this project (its exports) can be shown in Finder
+                if act == 'recover':   # attach any take still waiting in the inbox
+                    return self.send(200, job('import', pid, lambda pr: {'sources': E.ingest_inbox(pid, pr)}))
+                if act == 'reveal':   # only this project's files, or its folder in ~/Movies/Wispr Video, can be shown
                     f = Path(str(self.jbody().get('file', ''))).resolve()
-                    if not E.within(pid, f) or not f.is_file(): return self.send(403, {'error': 'can only reveal files in this project'})
+                    if not E.revealable(pid, f) or not f.exists(): return self.send(403, {'error': 'can only reveal files in this project'})
                     subprocess.run(['open', '-R', str(f)]); return self.send(200, {'ok': True})
             self.send(404, {'error': 'not found'})
         except Exception as e:
@@ -257,22 +259,26 @@ class H(BaseHTTPRequestHandler):
                 chunk = self.rfile.read(min(left, 1 << 20))
                 if not chunk: break
                 out.write(chunk); left -= len(chunk)
+        if left > 0:
+            f.unlink(missing_ok=True); return self.send(400, {'error': 'upload was cut off; record again or retry'})
         marks = json.loads(q['marks']) if q.get('marks') else None
         at = float(q['at']) if q.get('at') not in (None, '') else None
+        role = role if role in E.INBOX_ROLES else 'media'
+        # a sidecar, so an import a restart interrupts is resumed by ingest_inbox instead of lost
+        (f.parent / (f.name + '.json')).write_text(json.dumps({'role': role, 'at': at, 'take': q.get('take'), 'marks': marks, 'name': name, 't': time.time()}))
 
         def imp(pr):
-            pr('importing ' + role, 0.1)
-            sid = E.import_media(pid, f, role, at=at, take=q.get('take'), marks=marks, recorded_at=time.time(), name=name)
-            if role == 'cam':
-                pr('transcribing', 0.6); E.transcribe(pid, sid)
-            f.unlink(missing_ok=True)
-            return {'source': sid}
+            sids = E.ingest_inbox(pid, pr)
+            saved = [E.last_saved(pid, s) for s in sids]
+            return {'sources': sids, 'source': sids[0] if sids else None, 'saved': [x for x in saved if x]}
         self.send(200, job('import', pid, imp))
 
 
 def main():
     E.HOME.mkdir(parents=True, exist_ok=True)
     threading.Thread(target=watch, daemon=True).start()
+    for pid in sorted({f.parent.parent.name for f in E.HOME.glob('*/inbox/*.json')}):   # finish imports a previous run was in the middle of
+        if E.PID_RE.match(pid): job('import', pid, lambda pr, pid=pid: {'sources': E.ingest_inbox(pid, pr), 'resumed': True})
     print(f'Wispr Video on http://127.0.0.1:{PORT}  (projects in {E.HOME})', flush=True)
     ThreadingHTTPServer(('127.0.0.1', PORT), H).serve_forever()
 

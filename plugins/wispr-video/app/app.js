@@ -57,6 +57,7 @@ function events() {
     if (ev.type === 'job' && ev.project === pid) onJob(ev);
   };
   es.onerror = () => status('Reconnecting to the editor server…');
+  es.onopen = () => { if ($('status').textContent.startsWith('Reconnecting')) { status('Reconnected'); load(); } };
 }
 
 function findClip(id) { for (const t of P.tracks) for (const c of t.clips) if (c.id === id) return { t, c }; return null; }
@@ -414,6 +415,11 @@ $('title').addEventListener('change', (e) => ops([{ op: 'set', path: 'title', va
 $('aspect').onclick = (e) => { const a = e.target.dataset.a; if (a) ops([{ op: 'set', path: 'aspect', value: a }], `aspect ${a}`); };
 
 addEventListener('keydown', (e) => {
+  if (e.target.id === 'pWispr' && !$('record').hidden) {   // in the Wispr field: Enter or arrows still drive the prompt
+    if (e.key === 'Enter' || e.key === 'ArrowRight') { e.preventDefault(); show(cur + 1, true); }
+    else if (e.key === 'ArrowLeft' && !e.target.value) show(cur - 1, true);
+    return;
+  }
   if (e.target.closest('input, textarea, select, [contenteditable]')) return;
   if (!$('record').hidden) return recordKeys(e);
   const k = e.key;
@@ -499,7 +505,13 @@ drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.ad
 drop.addEventListener('dragleave', () => drop.classList.remove('over'));
 drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); [...e.dataTransfer.files].forEach((f) => upload(f, $('importRole').value, fr(T))); });
 $('stagewrap').addEventListener('dragover', (e) => e.preventDefault());
-$('stagewrap').addEventListener('drop', (e) => { e.preventDefault(); [...e.dataTransfer.files].forEach((f) => upload(f, Object.keys(P.sources).length ? 'media' : 'cam', Object.keys(P.sources).length ? fr(T) : undefined)); });
+$('stagewrap').addEventListener('drop', (e) => {
+  e.preventDefault();
+  [...e.dataTransfer.files].forEach((f) => {   // a video on an empty project is the camera take; images are always b-roll
+    const cam = !Object.keys(P.sources).length && /^video\//.test(f.type);
+    upload(f, cam ? 'cam' : 'media', cam ? undefined : fr(T));
+  });
+});
 
 async function upload(file, role, at, extra = {}) {
   const q = new URLSearchParams({ role, name: file.name || `${role}.webm`, ...(at != null ? { at } : {}), ...extra });
@@ -626,7 +638,7 @@ const STEP_NAMES = { get: 'reading the timeline', edit: 'editing', find: 'findin
 let dict = null;
 $('btnMic').onclick = () => {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) return toast('Dictation needs Chrome — or hold your Wispr key and talk into the box');
+  if (!SR) return toast('Dictation needs Chrome. Or hold fn and speak into the box.');
   if (dict) { dict.stop(); return; }
   dict = new SR(); dict.interimResults = true; dict.lang = 'en-IN';
   dict.onresult = (e) => { $('askInput').value = [...e.results].map((r) => r[0].transcript).join(' '); };
@@ -648,9 +660,22 @@ function onJob(j) {
   }
   if (j.kind === 'export') return exportProgress(j);
   if (j.state === 'running') status(`${j.stage[0].toUpperCase() + j.stage.slice(1)}…`, true);
-  else if (j.state === 'error') { status(''); toast(j.error, 6000); }
-  else { status(j.kind === 'import' ? 'Imported' : 'Done'); if (j.kind === 'import' && j.result?.source) toast('Added to the timeline'); }
+  else if (j.state === 'error') { status(''); savedBar(null); toast((j.kind === 'import' ? 'Couldn’t add that take: ' : '') + j.error, 9000); }
+  else {
+    status(j.kind === 'import' ? 'Imported' : 'Done');
+    if (j.kind === 'import' && j.result?.sources?.length) { toast(j.result.resumed ? 'Recovered a take that was still importing' : 'Added to the timeline'); savedBar(j.result.saved?.[0]); }
+  }
 }
+
+// "Saved to Movies › Wispr Video › …" with a Reveal button, after a take or an export lands
+function savedBar(file) {
+  const bar = $('savedBar'); if (!file) { bar.hidden = true; return; }
+  const parts = file.split('/'); const i = parts.indexOf('Movies');
+  $('savedPath').textContent = 'Saved to ' + (i >= 0 ? parts.slice(i, -1).join(' › ') : parts.slice(-3, -1).join(' › '));
+  bar.hidden = false; bar.dataset.file = file;
+}
+$('savedReveal').onclick = () => reveal($('savedBar').dataset.file);
+const reveal = (file) => api(`/api/project/${pid}/reveal`, { method: 'POST', body: JSON.stringify({ file }) }).catch((e) => toast(e.message));
 
 // ---------- export ----------
 let exAspect = null;
@@ -673,12 +698,13 @@ function exportProgress(j) {
   if (j.state === 'running') bar.querySelector('span').textContent = j.stage === 'captions' ? 'Burning in captions…' : `Rendering… ${Math.round((j.progress || 0) * 100)}%`;
   else if (j.state === 'error') { bar.querySelector('span').textContent = 'Export failed: ' + j.error; $('exGo').disabled = false; }
   else {
-    lastExport = j.result; bar.querySelector('span').textContent = 'Saved · ' + j.result.file.split('/').pop();
+    lastExport = j.result; const sv = j.result.saved || j.result.file, sp = sv.split('/'), mi = sp.indexOf('Movies');
+    bar.querySelector('span').textContent = 'Saved to ' + (mi >= 0 ? sp.slice(mi).join(' › ') : sp.pop()); savedBar(sv);
     const v = $('exVideo'); v.src = j.result.url; v.hidden = false; $('exReveal').hidden = false; $('exGo').disabled = false;
     if (!$('dlgExport').open) toast('Export ready');
   }
 }
-$('exReveal').onclick = () => lastExport && api(`/api/project/${pid}/reveal`, { method: 'POST', body: JSON.stringify({ file: lastExport.file }) });
+$('exReveal').onclick = () => lastExport && reveal(lastExport.saved || lastExport.file);
 
 // ---------- projects ----------
 $('btnProjects').onclick = async () => {
@@ -764,8 +790,8 @@ function startMeter(stream) {
       const now = performance.now();
       if (lvl > 0.18) { loudSince = loudSince || now; lastLoud = now; } else if (now - lastLoud > 1500) loudSince = 0;   // gaps between words don't count
       // talking for 5 s with nothing recognised in the last 6 s → offer the Wispr path
-      if (rec0 && $('pFall').hidden && loudSince && now - loudSince > 5000 && now - Math.max(lastHeard, rec0) > 6000) {
-        $('pFall').hidden = false; $('pWispr').focus();
+      if (rec0 && loudSince && now - loudSince > 5000 && now - Math.max(lastHeard, rec0) > 6000 && document.activeElement !== $('pWispr')) {
+        $('pWispr').focus({ preventScroll: true });   // talking but nothing's arriving: put the cursor back in the Wispr field
       }
     }, 80) };
   } catch {}
@@ -791,9 +817,13 @@ function listen(on) {
     if (srec) { srec.onend = null; srec.abort(); srec = null; }
     stopMeter(); $('pHearing').hidden = true; $('pFall').hidden = true; vs.className = 'vstat'; vs.textContent = ''; return;
   }
-  if (!$('rVoice').checked) return;
+  // Wispr is the primary route: a focused field Wispr Flow types into while you read, matched against the script.
+  // The browser's own speech recognition is an opt-in fallback, so recording never fights Wispr for the mic.
   lastHeard = 0; loudSince = 0; $('pHearing').hidden = false; $('pHearing').classList.remove('live'); $('pHeard').textContent = 'Waiting for your first words…';
+  $('pFall').hidden = false; setTimeout(() => $('pWispr').focus({ preventScroll: true }), 50);
+  vs.className = 'vstat on'; vs.textContent = 'Following Wispr';
   if (camStream) startMeter(camStream);
+  if (!$('rVoice').checked) return;
   const SR = getSR();
   if (!SR) { vs.textContent = 'Voice-follow needs Chrome · Wispr dictation or Space moves on'; $('pFall').hidden = false; return; }
   if (srec) return;
@@ -801,7 +831,7 @@ function listen(on) {
   srec.onresult = (e) => { interim = []; for (let i = e.resultIndex; i < e.results.length; i++) { const ws = e.results[i][0].transcript.split(/\s+/).map(norm).filter(Boolean); if (e.results[i].isFinal) hearWords(ws); else { interim.push(...ws); lastHeard = performance.now(); } } matchLine(); };
   srec.onerror = (e) => { if (/not-allowed|audio-capture/.test(e.error)) { vs.className = 'vstat'; vs.textContent = 'Voice-follow blocked · Wispr dictation or Space moves on'; $('pFall').hidden = false; srec = null; } };
   srec.onend = () => { if (srec) try { startSR(srec); } catch {} };   // Chrome stops after silences; keep listening
-  try { startSR(srec); vs.className = 'vstat on'; vs.textContent = 'Listening'; } catch {}
+  try { startSR(srec); vs.className = 'vstat on'; vs.textContent = 'Following Wispr + browser'; } catch {}
 }
 $('rVoice').onchange = () => listen($('rVoice').checked && !!rec0);
 

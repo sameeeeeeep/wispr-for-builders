@@ -112,6 +112,7 @@
       <button class="tool accent" id="btnPauses" title="Remove pauses and ums">Cut pauses <span id="pauseN"></span></button>
       <span class="grow"></span>
       <span class="status" id="status"></span>
+      <span class="saved" id="savedBar" hidden><span id="savedPath"></span><button class="tool" id="savedReveal">Reveal in Finder</button></span>
       <label class="zoom"><svg viewBox="0 0 20 20"><circle cx="9" cy="9" r="5"/><path d="m13 13 4 4"/></svg><input type="range" id="zoom" min="10" max="240" value="40" aria-label="Zoom"></label>
     </div>
     <div class="tscroll" id="tscroll">
@@ -132,8 +133,8 @@
     <div class="pnext" id="pNext"></div>
     <div class="hearing" id="pHearing" hidden><i class="lvl"><b id="pLvl"></b></i><span id="pHeard">Waiting for your first words…</span></div>
     <div class="wfall" id="pFall" hidden>
-      <p><b>Wispr Video can’t hear the mic while it records.</b> Hold <kbd>fn</kbd> and read the line. The words you dictate move the prompt, or press Space.</p>
-      <input id="pWispr" placeholder="Wispr dictation lands here" autocomplete="off" spellcheck="false">
+      <p><b>Read with Wispr.</b> Hold <kbd>fn</kbd> while you read each line. The words Wispr types here move the prompt. <kbd>↵</kbd> or <kbd>→</kbd> also moves on.</p>
+      <input id="pWispr" placeholder="Wispr types here while you read" autocomplete="off" spellcheck="false">
     </div>
     <div class="pkeys"><kbd>space</kbd> or <kbd>→</kbd> next line · <kbd>←</kbd> back · <kbd>R</kbd> record or stop. The prompt follows your voice and never moves on a timer.</div>
   </section>
@@ -142,7 +143,7 @@
     <div class="field col"><span>Record</span>
       <div class="seg" id="rWhat"><button data-w="both">Camera + screen</button><button data-w="cam">Camera</button><button data-w="screen">Screen</button></div></div>
     <p class="hint" id="rHint"></p>
-    <label class="sw"><input type="checkbox" id="rVoice" checked><span>Follow my voice</span></label>
+    <label class="sw"><input type="checkbox" id="rVoice"><span>Also listen in the browser</span></label>
     <div class="row"><button class="cta rec" id="btnRec"><i></i>Record</button><button class="ghost" id="btnStop" disabled>Stop</button></div>
     <div class="field col script"><span>Script <em class="hint">one paragraph per line</em></span><textarea id="script" spellcheck="true" placeholder="Paste your script. Each paragraph becomes one teleprompter line."></textarea></div>
   </aside>
