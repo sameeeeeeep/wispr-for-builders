@@ -131,6 +131,9 @@ function syncVideo(v, clip, t, audible) {
   }
 }
 
+function cropView(v, cr) {   // a clip's crop {x,y,w,h} (0-1 of the source) as CSS object-view-box
+  v.style.objectViewBox = cr ? `inset(${cr.y * 100}% ${(1 - cr.x - cr.w) * 100}% ${(1 - cr.y - cr.h) * 100}% ${cr.x * 100}%)` : 'none';
+}
 function place(el, box, radius) {
   el.style.left = box[0] * K + 'px'; el.style.top = box[1] * K + 'px';
   el.style.width = box[2] * K + 'px'; el.style.height = box[3] * K + 'px';
@@ -147,13 +150,23 @@ function preview(t, force) {
   const ss = scr ? P.sources[scr.src] : {};
   const g = geometry(mode, W, H, ss.w || 16, ss.h || 9);
   const vS = $('vScreen'), vC = $('vCam');
+  const plate = P.frame && g.bg;   // Wispr-style: footage in a soft rounded frame on the plate, no blur (mirrors the export)
   if (scr && g.screen) {
     $('slotScreen').hidden = false; syncVideo(vS, scr, t, (scr.volume || 0) > 0);
-    place($('slotScreen'), g.screen, mode === 'split' ? 0 : 0.025 * W * K + 'px');
-    vS.style.objectFit = mode === 'split' ? 'cover' : 'contain';
+    cropView(vS, scr.crop);
+    if (plate) {
+      const m = (P.frame.margin ?? 0.05) * Math.min(W, H), cw = (ss.w || 16) * (scr.crop?.w ?? 1), ch = (ss.h || 9) * (scr.crop?.h ?? 1);
+      let bw = W - 2 * m, bh = bw * ch / cw; if (bh > H - 2 * m) { bh = H - 2 * m; bw = bh * cw / ch; }
+      const box = [(W - bw) / 2, (H - bh) / 2, bw, bh];
+      place($('slotScreen'), box, (P.frame.radius ?? 0.025) * Math.min(bw, bh) * K + 'px');
+      vS.style.objectFit = 'cover'; $('slotScreen').style.boxShadow = '0 10px 30px rgba(26,26,26,.25)';
+    } else {
+      place($('slotScreen'), g.screen, mode === 'split' ? 0 : 0.025 * W * K + 'px');
+      vS.style.objectFit = mode === 'split' || scr.crop ? 'cover' : 'contain'; $('slotScreen').style.boxShadow = 'none';
+    }
   } else { $('slotScreen').hidden = true; if (!vS.paused) vS.pause(); }
   const bg = $('bgblur');
-  if (scr && g.bg && vS.readyState >= 2) {
+  if (scr && g.bg && !plate && vS.readyState >= 2) {
     bg.hidden = false; bg.width = 64; bg.height = Math.round(64 * H / W);
     const c2 = bg.getContext('2d'); const r = Math.max(bg.width / vS.videoWidth, bg.height / vS.videoHeight);
     c2.drawImage(vS, (bg.width - vS.videoWidth * r) / 2, (bg.height - vS.videoHeight * r) / 2, vS.videoWidth * r, vS.videoHeight * r);
@@ -180,7 +193,7 @@ function preview(t, force) {
     }
     const b = c.box || { x: 0, y: 0, w: 1, h: 1 };
     place(el, [b.x * W, b.y * H, b.w * W, b.h * H], (c.radius || 0) * Math.min(b.w * W, b.h * H) * K + 'px');
-    el.style.zIndex = z; el.firstChild.style.objectFit = c.fit || 'cover';
+    el.style.zIndex = z; el.firstChild.style.objectFit = c.fit || 'cover'; cropView(el.firstChild, c.crop);
     const fade = c.anim === 'fade' ? clamp((t - c.at) / 0.18, 0, 1) : 1; el.style.opacity = fade;
     if (el.firstChild.tagName === 'VIDEO') syncVideo(el.firstChild, c, t, false);
   });
@@ -721,7 +734,9 @@ function show(i, user) {
 // voice follow: the line moves on only once you've said its last word. Never on a timer.
 const getSR = () => window.SpeechRecognition || window.webkitSpeechRecognition;   // read late so it can be stubbed in tests
 let srec = null, heardAll = [], heard0 = 0, interim = [];
-const near = (a, b) => a === b || (a.length > 3 && b.length > 3 && (a.startsWith(b) || b.startsWith(a))) || lev1(a, b);
+const SOUNDALIKE = [['to', 'too', 'two'], ['for', 'four'], ['a', 'an', 'uh'], ['its', 'it'], ['your', 'youre'], ['there', 'their', 'theyre'], ['one', 'won']];
+const near = (a, b) => a === b || (a.length > 3 && b.length > 3 && (a.startsWith(b) || b.startsWith(a))) || lev1(a, b)
+  || SOUNDALIKE.some((g) => g.includes(a) && g.includes(b));   // recognisers write "to" for "too"; don't let that block a line
 function lev1(a, b) { if (Math.abs(a.length - b.length) > 1 || a.length < 4) return false; let i = 0, j = 0, d = 0; while (i < a.length && j < b.length) { if (a[i] === b[j]) { i++; j++; continue; } if (++d > 1) return false; if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; } } return d + (a.length - i) + (b.length - j) <= 1; }
 function matchLine() {
   const p = lines[cur]; if (!p) return;
@@ -786,7 +801,7 @@ function listen(on) {
   srec.onresult = (e) => { interim = []; for (let i = e.resultIndex; i < e.results.length; i++) { const ws = e.results[i][0].transcript.split(/\s+/).map(norm).filter(Boolean); if (e.results[i].isFinal) hearWords(ws); else { interim.push(...ws); lastHeard = performance.now(); } } matchLine(); };
   srec.onerror = (e) => { if (/not-allowed|audio-capture/.test(e.error)) { vs.className = 'vstat'; vs.textContent = 'Voice-follow blocked · Wispr dictation or Space moves on'; $('pFall').hidden = false; srec = null; } };
   srec.onend = () => { if (srec) try { startSR(srec); } catch {} };   // Chrome stops after silences; keep listening
-  try { startSR(srec); vs.className = 'vstat on'; vs.textContent = srec._track ? 'Listening (recording mic)' : 'Listening'; } catch {}
+  try { startSR(srec); vs.className = 'vstat on'; vs.textContent = 'Listening'; } catch {}
 }
 $('rVoice').onchange = () => listen($('rVoice').checked && !!rec0);
 

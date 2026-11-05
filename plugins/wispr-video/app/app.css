@@ -225,7 +225,7 @@ input[type=range] { accent-color: var(--ink); }
 .pmeta b { color: var(--teal); }
 .vstat.on { color: var(--teal); }
 .pline { font: 400 clamp(32px, 4.2vw, 60px)/1.18 var(--serif); letter-spacing: -.015em; max-width: 26ch; }
-.pline .w { color: rgba(26,26,26,.28); transition: color .18s; }
+.pline .w { color: rgba(26,26,26,.34); transition: color .18s; }
 .pline .w.said { color: var(--ink); }
 .pbar { height: 5px; background: var(--line); border-radius: 9px; overflow: hidden; max-width: 640px; }
 .pbar i { display: block; height: 100%; width: 0; background: var(--ink); transition: width .2s; }

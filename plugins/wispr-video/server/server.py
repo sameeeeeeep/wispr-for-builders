@@ -1,6 +1,6 @@
 """Wispr Video editor server: serves the editor UI and the project API on 127.0.0.1:4380.
 The UI and Claude (via mcp.py) both edit ~/WisprVideo/<id>/project.json; /api/events pushes every change live."""
-import json, os, queue, re, shutil, subprocess, sys, threading, time, traceback, urllib.parse
+import hmac, json, os, queue, re, secrets, shutil, subprocess, sys, threading, time, traceback, urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -12,6 +12,21 @@ APP = E.PKG / 'app'
 SAFE = re.compile(r'^[A-Za-z0-9._-]{1,80}$')
 TYPES = {'.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.mp4': 'video/mp4',
          '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.webm': 'video/webm'}
+HOSTS = {f'127.0.0.1:{PORT}', f'localhost:{PORT}'}
+ORIGINS = {f'http://{h}' for h in HOSTS}
+
+
+def install_token():
+    """Per-install secret. The editor page gets it as an HttpOnly cookie; every API, media and event call must carry it,
+    so another site in the browser (or one using DNS rebinding) can't drive edits, renders or read project files."""
+    d = Path.home() / '.wispr-video'; d.mkdir(mode=0o700, exist_ok=True)
+    f = d / 'token'
+    if not f.exists():
+        f.write_text(secrets.token_urlsafe(32)); f.chmod(0o600)
+    return f.read_text().strip()
+
+
+TOKEN = install_token()
 clients = []          # SSE queues
 jobs = {}             # id -> {kind, state, progress, result, error}
 
@@ -56,7 +71,7 @@ def watch():
 CLAUDE_SYS = """You are the editor inside Wispr Video, a voice-first video editor. The user speaks an edit; you make it with the
 wispr-video MCP tools. Always call video_get first (it has the transcript with timeline times, script line times, clip ids),
 then video_edit with ops. Ripple cuts shift everything after them, so when making several cuts send them latest-first in one call.
-Check visual changes with video_still. Reply in one short sentence saying what you changed. Never export unless asked."""
+Check visual changes with video_still. Reply to a creator, not an engineer: one short plain sentence saying what changed, like "Made the title bigger and moved it to the top." Never mention numbers, coordinates, clip ids, op names, markdown or stills. Never export unless asked."""
 
 
 def run_claude(pid, text, progress):
@@ -88,6 +103,22 @@ class H(BaseHTTPRequestHandler):
 
     def log_message(self, *a): pass
 
+    def guard(self, write=False):
+        """Host must be ours (stops DNS rebinding); writes and private reads need our Origin (or none) and the token."""
+        if self.headers.get('Host', '') not in HOSTS:
+            self.send(403, {'error': 'bad host'}); return False
+        path = urllib.parse.urlparse(self.path).path
+        public = path in ('/', '/index.html') or path.startswith('/app/')
+        if public and not write: return True
+        origin = self.headers.get('Origin')
+        if origin is not None and origin not in ORIGINS:
+            self.send(403, {'error': 'bad origin'}); return False
+        cookie = dict(c.strip().split('=', 1) for c in (self.headers.get('Cookie') or '').split(';') if '=' in c)
+        got = self.headers.get('X-Wispr-Video-Token') or cookie.get('wv_token', '')
+        if not hmac.compare_digest(got, TOKEN):
+            self.send(403, {'error': 'missing token: open the editor from http://127.0.0.1:%d/' % PORT}); return False
+        return True
+
     def send(self, code, body=b'', ctype='application/json', extra=None):
         if isinstance(body, (dict, list)): body = json.dumps(body).encode()
         elif isinstance(body, str): body = body.encode()
@@ -104,7 +135,7 @@ class H(BaseHTTPRequestHandler):
     def jbody(self):
         b = self.body(); return json.loads(b) if b else {}
 
-    def file(self, f):
+    def file(self, f, extra=None):
         f = Path(f)
         if not f.is_file(): return self.send(404, {'error': 'not found'})
         size = f.stat().st_size; ctype = TYPES.get(f.suffix.lower(), 'application/octet-stream')
@@ -127,15 +158,19 @@ class H(BaseHTTPRequestHandler):
             return
         self.send_response(200)
         self.send_header('Content-Type', ctype); self.send_header('Content-Length', str(size)); self.send_header('Accept-Ranges', 'bytes')
-        self.send_header('Cache-Control', 'no-store'); self.end_headers()
+        self.send_header('Cache-Control', 'no-store')
+        for k, v in (extra or {}).items(): self.send_header(k, v)
+        self.end_headers()
         with open(f, 'rb') as fh:
             try: shutil.copyfileobj(fh, self.wfile, 1 << 20)
             except (BrokenPipeError, ConnectionResetError): pass
 
     def do_GET(self):
         u = urllib.parse.urlparse(self.path); q = dict(urllib.parse.parse_qsl(u.query)); path = u.path
+        if not self.guard(): return
         try:
-            if path in ('/', '/index.html'): return self.file(APP / 'index.html')
+            if path in ('/', '/index.html'):
+                return self.file(APP / 'index.html', extra={'Set-Cookie': f'wv_token={TOKEN}; Path=/; HttpOnly; SameSite=Strict'})
             if path.startswith('/app/'):
                 f = (APP / path[5:]).resolve()
                 return self.file(f) if str(f).startswith(str(APP)) else self.send(403)
@@ -172,6 +207,7 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         u = urllib.parse.urlparse(self.path); q = dict(urllib.parse.parse_qsl(u.query)); parts = u.path.strip('/').split('/')
+        if not self.guard(write=True): return
         try:
             if u.path == '/api/projects':
                 b = self.jbody(); p = E.new_project(b.get('title') or 'Untitled video', b.get('aspect', '9:16'))

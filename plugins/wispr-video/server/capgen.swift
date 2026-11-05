@@ -6,7 +6,7 @@ import CoreText
 import ImageIO
 import UniformTypeIdentifiers
 
-struct Run: Decodable { let t: String; let c: String; let serif: Bool? }
+struct Run: Decodable { let t: String; let c: String; let serif: Bool?; let sp: Bool? }
 struct Frame: Decodable { let file: String; let runs: [Run] }
 struct Style: Decodable {
   let size: Double; let y: Double; let weight: Double; let maxWidth: Double
@@ -23,7 +23,9 @@ func color(_ hex: String) -> CGColor {
 }
 
 func font(_ name: String, _ size: CGFloat, weight: Double, italic: Bool) -> CTFont {
-  let base = CTFontCreateWithName(name as CFString, size, nil)
+  // the italic is its own font file ("EB Garamond Italic"); asking for an italic trait alone silently stays upright
+  var base = CTFontCreateWithName((italic ? name + " Italic" : name) as CFString, size, nil)
+  if italic && !(CTFontCopyFamilyName(base) as String).hasPrefix(name.components(separatedBy: " ").first ?? name) { base = CTFontCreateWithName(name as CFString, size, nil) }
   let wght = NSNumber(value: 0x77676874)   // 'wght' axis of the variable fonts
   var attrs: [CFString: Any] = [kCTFontVariationAttribute: [wght: weight]]
   if italic { attrs[kCTFontTraitsAttribute] = [kCTFontSymbolicTrait: CTFontSymbolicTraits.traitItalic.rawValue] }
@@ -55,7 +57,7 @@ for fr in spec.frames {
       let a: [NSAttributedString.Key: Any] = [
         NSAttributedString.Key(kCTFontAttributeName as String): (r.serif ?? false) ? serif : sans,
         NSAttributedString.Key(kCTForegroundColorAttributeName as String): color(r.c)]
-      s.append(NSAttributedString(string: (i > 0 ? " " : "") + r.t, attributes: a))
+      s.append(NSAttributedString(string: (i > 0 && (r.sp ?? true) ? " " : "") + r.t, attributes: a))
     }
     var align = CTTextAlignment.center
     var spacing = CGFloat(-px * 0.06)
@@ -77,9 +79,9 @@ for fr in spec.frames {
       for (i, l) in lines.enumerated() {
         var asc: CGFloat = 0, desc: CGFloat = 0, lead: CGFloat = 0
         let w = CGFloat(CTLineGetTypographicBounds(l, &asc, &desc, &lead))
-        let pad = px * 0.28
-        let r = CGRect(x: rect.minX + origins[i].x - pad, y: rect.minY + origins[i].y - desc - pad * 0.55,
-                       width: w + pad * 2, height: asc + desc + pad * 1.1)
+        let pad = px * 0.42
+        let r = CGRect(x: rect.minX + origins[i].x - pad, y: rect.minY + origins[i].y - desc - pad * 0.5,
+                       width: w + pad * 2, height: asc + desc + pad * 1.0)
         ctx.addPath(CGPath(roundedRect: r, cornerWidth: px * 0.32, cornerHeight: px * 0.32, transform: nil)); ctx.fillPath()
       }
     } else if st.shadow ?? true {

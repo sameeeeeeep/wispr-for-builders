@@ -314,6 +314,9 @@ def apply_ops(pid, ops, note=''):
         return p, log
 
 
+TEXT_STYLE = ('size', 'y', 'color', 'accent', 'bg', 'fill', 'weight', 'maxWidth', 'font', 'shadow')
+
+
 def _op(p, o):
     k = o.pop('op', '')
     if k == 'set':
@@ -328,7 +331,7 @@ def _op(p, o):
         tid = o.get('track', 'overlay')
         at = fr(o.get('start', o.get('at', 0)))
         dur = fr((o['end'] - at) if 'end' in o else o.get('dur', 3))
-        st = {x: o[x] for x in ('size', 'y', 'color', 'accent', 'bg', 'fill', 'weight', 'maxWidth') if x in o}
+        st = {x: o[x] for x in TEXT_STYLE if x in o}
         c = {'id': rid('t'), 'kind': 'text', 'text': o['text'], 'at': at, 'dur': dur, 'style': st, 'anim': o.get('anim', 'fade')}
         track(p, tid)['clips'].append(c); return f"text {c['id']} {at}-{at + dur}"
     if k == 'add_clip' or k == 'overlay':
@@ -357,6 +360,11 @@ def _op(p, o):
     if k == 'update_clip' or k == 'move_clip' or k == 'trim_clip':
         t, c = find_clip(p, o.pop('id'))
         to = o.pop('track', None)
+        if c.get('kind') == 'text':   # title look: merge, and accept size/y/color/... at the top level too
+            st = dict(c.get('style') or {}); st.update(o.pop('style', None) or {})
+            for x in TEXT_STYLE:
+                if x in o: st[x] = o.pop(x)
+            c['style'] = st
         for x, v in o.items():
             if x == 'box': c['box'] = {**c.get('box', {}), **v}
             elif x in ('at', 'dur'): c[x] = fr(v)
@@ -412,7 +420,7 @@ OPS_DOC = """Ops (times are timeline seconds):
 - {"op":"layout","mode":"cam|screen|pip|split|auto","start":s,"end":e}   (omit start/end = whole video)
 - {"op":"overlay","src":id,"start":s,"end":e,"box":{"x":0,"y":0,"w":1,"h":1},"fit":"cover|contain","radius":0.04,"track":"overlay"}
 - {"op":"add_clip","track":"screen|cam|overlay","src":id,"at":t,"in":0,"out":d}
-- {"op":"update_clip","id":cid, ...fields}      e.g. at, in, out, volume, box, fit, radius
+- {"op":"update_clip","id":cid, ...fields}      e.g. at, in, out, volume, box, fit, radius, crop, push; for a text clip also text, size, y, color, bg (merged into its style)
 - {"op":"delete_clip","id":cid,"ripple":false}
 - {"op":"captions", "on":true,"size":0.045,"y":0.70,"words":4,"weight":800,"upper":false,"color":"#FFFFEB","active":"#F0D7FF","keyword":"#FFA946","serifKeywords":true,"box":"#1A1A1ACC"|""}
 - {"op":"text","text":"Don't type, *just speak.*","start":s,"end":e,"y":0.5,"size":0.06,"color":"#FFFFEB","accent":"#F0D7FF","bg":"#1A1A1ACC","fill":"#FFFFEB"}   title / caption card; *stars* = italic serif; fill = full-frame card
@@ -684,6 +692,18 @@ def _mask(work, w, h, r, circle=False):
     return f
 
 
+def _shadow(work, w, h, r, pad):
+    """A soft drop shadow for a rounded frame: black with a blurred rounded-rect alpha, pad px bigger on each side."""
+    f = work / f'shadow-{w}x{h}-{r}-{pad}.png'
+    if f.exists(): return f
+    W2, H2 = w + 2 * pad, h + 2 * pad
+    e = f"if(lte(hypot(max(abs(X-{W2}/2)-({w}/2-{r}),0),max(abs(Y-{H2}/2)-({h}/2-{r}),0)),{r}),255,0)"
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', f'color=black:s={W2}x{H2}', '-f', 'lavfi', '-i', f'color=black:s={W2}x{H2}',
+                    '-filter_complex', f"[1:v]format=gray,geq=lum='{e}',boxblur={max(2, pad // 2)}:2,lut=y=val*0.30[a];[0:v]format=rgba[c];[c][a]alphamerge",
+                    '-frames:v', '1', str(f)], check=True)
+    return f
+
+
 def layout_at(p, t, has_cam, has_scr):
     c = active(track(p, 'layout'), t)
     mode = c['mode'] if c else p.get('layout', 'auto')
@@ -733,11 +753,14 @@ def segments(p):
 
 
 def text_runs(text, color, accent):
-    """'Don't type, *just speak.*' → runs; *starred* words use the italic serif."""
-    runs = []
+    """'Don't type, *just speak.*' → runs; *starred* words use the italic serif. A word gets a space before it
+    unless it touches the previous run ("sameep*.ai*" stays one word)."""
+    runs, prev_space = [], True
     for i, part in enumerate(re.split(r'\*([^*]+)\*', text)):
-        for w in part.split():
-            runs.append({'t': w, 'c': accent if i % 2 else color, 'serif': bool(i % 2)})
+        for k, w in enumerate(part.split()):
+            sp = (prev_space or part[:1].isspace()) if k == 0 else True
+            runs.append({'t': w, 'c': accent if i % 2 else color, 'serif': bool(i % 2), 'sp': bool(sp or not runs)})
+        if part: prev_space = part[-1:].isspace()
     return runs
 
 
@@ -757,6 +780,7 @@ def text_png(c, W, H, work):
     color = st.get('color', '#1A1A1A' if fill else '#FFFFEB')
     spec = {'width': W, 'height': H, 'fontsDir': str(FONTS), 'frames': [{'file': str(f), 'runs': text_runs(c['text'], color, st.get('accent', color))}],
             'style': {'size': st.get('size', 0.06) * min(H, W) / H, 'y': st.get('y', 0.5), 'weight': st.get('weight', 700), 'maxWidth': st.get('maxWidth', 0.84),
+                      'font': 'EB Garamond' if st.get('font') == 'serif' else 'Figtree',
                       'box': st.get('bg', ''), 'shadow': st.get('shadow', not fill and not st.get('bg') and _light(color)), 'fill': fill}}
     (work / f'text-{key}.json').write_text(json.dumps(spec))
     subprocess.run([str(capgen_bin()), str(work / f'text-{key}.json')], check=True)
@@ -788,18 +812,30 @@ def _segment_cmd(p, a, b, W, H, out, work, still=False):
     fc.append(f"color=c={p.get('bg', '#1A1A1A').replace('#', '0x')}:s={W}x{H}:r={FPS}:d={d}[base]")
     last = 'base'
 
-    def place(idx, box, label, radius=0, circle=False, fade=False, fit=None, aspect=None):
+    def place(idx, box, label, radius=0, circle=False, fade=False, fit=None, aspect=None, clip=None, shadow=False):
         nonlocal last, n
         x, y, w, h, f0 = box; fit = fit or f0
+        cr = (clip or {}).get('crop')   # {x,y,w,h} of the source, 0-1: a punch-in on part of the frame
+        pre = f"crop=iw*{cr['w']}:ih*{cr['h']}:iw*{cr['x']}:ih*{cr['y']}," if cr else ''
+        if cr and aspect: aspect = (aspect[0] * cr['w'], aspect[1] * cr['h'])
         if fit == 'contain' and aspect:   # shrink the box to the media's own shape, so corners and masks hug it
             sw, sh = aspect
             if w / h > sw / sh: nw = h * sw / sh; x += (w - nw) / 2; w = nw
             else: nh = w * sh / sw; y += (h - nh) / 2; h = nh
             fit = 'cover'
         w, h = _ev(w), _ev(h)
-        if fit == 'cover': fc.append(f"[{idx}:v]setpts=PTS-STARTPTS,fps={FPS},scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1,format=rgba[{label}0]")
-        else: fc.append(f"[{idx}:v]setpts=PTS-STARTPTS,fps={FPS},scale={w}:{h}:force_original_aspect_ratio=decrease,setsar=1,format=rgba[{label}0]")
+        push = ''
+        if clip and clip.get('push'):   # slow push-in across the whole clip, continuous over segment cuts
+            L = max(0.1, clip_len(clip)); off = a - clip['at']
+            push = f",zoompan=z='1+{clip['push']}*({off:.4f}+on/{FPS})/{L:.4f}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={w}x{h}:fps={FPS}"
+        if fit == 'cover': fc.append(f"[{idx}:v]setpts=PTS-STARTPTS,{pre}fps={FPS},scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}{push},setsar=1,format=rgba[{label}0]")
+        else: fc.append(f"[{idx}:v]setpts=PTS-STARTPTS,{pre}fps={FPS},scale={w}:{h}:force_original_aspect_ratio=decrease,setsar=1,format=rgba[{label}0]")
         cur = f'{label}0'
+        if shadow:
+            pad = max(8, int(0.025 * min(W, H)))
+            sh = _shadow(work, w, h, int(radius * min(w, h)) or 1, pad)
+            args.extend(['-loop', '1', '-t', f'{d}', '-i', str(sh)]); n += 1
+            fc.append(f"[{last}][{n - 1}:v]overlay=x={int(x) - pad}:y={int(y) - pad + pad // 3}[{label}sh]"); last = f'{label}sh'
         if radius or circle:
             if fit != 'cover':   # mask must match the scaled size: pad to box first
                 fc.append(f"[{cur}]pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=black@0[{label}p]"); cur = f'{label}p'
@@ -813,7 +849,12 @@ def _segment_cmd(p, a, b, W, H, out, work, still=False):
 
     si = inp(scr) if scr and 'screen' in g else None
     ci = inp(cam) if cam and 'cam' in g else None
-    if si is not None and g.get('bg'):
+    fr_ = p.get('frame')
+    if si is not None and g.get('bg') and fr_:   # Wispr-style: footage in a soft rounded frame on a flat plate, no blur
+        m = fr_.get('margin', 0.05) * min(W, H)
+        place(si, (m, m, W - 2 * m, H - 2 * m, 'contain'), 'scr', radius=fr_.get('radius', 0.025),
+              aspect=(scr_src.get('w') or 16, scr_src.get('h') or 9), clip=scr, shadow=fr_.get('shadow', True))
+    elif si is not None and g.get('bg'):
         fc.append(f"[{si}:v]setpts=PTS-STARTPTS,split=2[sbg][sfg]")
         fc.append(f"[sbg]fps={FPS},scale={W // 8}:{H // 8}:force_original_aspect_ratio=increase,crop={W // 8}:{H // 8},boxblur=6:2,eq=brightness=-0.12:saturation=0.8,scale={W}:{H},setsar=1[sbgb]")
         fc.append(f"[{last}][sbgb]overlay=0:0[bgo]"); last = 'bgo'
@@ -842,7 +883,8 @@ def _segment_cmd(p, a, b, W, H, out, work, still=False):
         idx = inp(c)
         place(idx, (b0['x'] * W, b0['y'] * H, b0['w'] * W, b0['h'] * H, c.get('fit', 'cover')), f'ov{k}',
               radius=c.get('radius', 0), fade=(c.get('anim') == 'fade' and abs(a - c['at']) < 0.01),
-              aspect=(lambda s: (s['w'], s['h']) if s.get('w') and s.get('h') else None)(p['sources'][c['src']]))
+              aspect=(lambda s: (s['w'], s['h']) if s.get('w') and s.get('h') else None)(p['sources'][c['src']]),
+              clip=c, shadow=bool(c.get('shadow')))
     fc.append(f"[{last}]format=yuv420p[vout]")
     if still:
         return ['ffmpeg', '-v', 'error', '-y', *args, '-filter_complex', ';'.join(fc), '-map', '[vout]', '-frames:v', '1', str(out)]
