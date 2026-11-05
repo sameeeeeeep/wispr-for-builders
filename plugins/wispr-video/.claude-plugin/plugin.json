@@ -1,0 +1,16 @@
+{
+  "name": "wispr-video",
+  "version": "0.1.0",
+  "displayName": "Wispr Video",
+  "description": "A voice-first video editor for Wispr users. Record yourself with a teleprompter that follows your voice, add a screen take, get word-timed captions, then say what to change and Claude edits the timeline live. Exports 9:16, 4:5 and 16:9 with ffmpeg.",
+  "author": { "name": "sameeeeeeep", "url": "https://sameep.ai" },
+  "homepage": "https://sameep.ai",
+  "license": "MIT",
+  "keywords": ["video", "editor", "captions", "voice", "teleprompter", "ffmpeg", "wispr"],
+  "mcpServers": {
+    "wispr-video": {
+      "command": "python3",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/server/mcp.py"]
+    }
+  }
+}

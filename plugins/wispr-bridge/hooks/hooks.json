@@ -1,0 +1,5 @@
+{
+  "description": "Wispr Bridge: installs ~/.wispr-bridge stable paths and the /wispr command",
+  "modules": ["./register.js"],
+  "hooks": {}
+}

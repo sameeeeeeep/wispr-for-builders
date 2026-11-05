@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Timer</title><style>/*BASE*/
+.clock{font-size:clamp(48px,19vw,76px);font-weight:300;font-variant-numeric:tabular-nums;text-align:center;letter-spacing:-.02em;margin:10px 0 0}
+.bar{height:4px;background:var(--line);border-radius:2px;overflow:hidden}.bar i{display:block;height:100%;background:var(--acc);width:100%;transition:width .9s linear}
+.done .clock{color:var(--acc)}
+</style></head><body>
+<main><h1 id="name">Timer</h1><div class="clock" id="clock">25:00</div><div class="bar"><i id="bar"></i></div>
+<div class="row"><button class="primary" id="go">Pause</button><button id="reset">Reset</button><button id="plus">+5 min</button></div></main>
+<footer><span>made for Wispr</span><span>space = pause</span></footer>
+<script>
+const P=/*PARAMS*/{minutes:25,label:""};
+try{window.resizeTo(380,340)}catch(e){}
+let total=Math.round(P.minutes*60),end=Date.now()+total*1000,left=total,running=true,rung=false;
+if(P.label){name.textContent=P.label;document.title=P.label}
+const fmt=s=>{s=Math.max(0,Math.ceil(s));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return (h?h+":"+String(m).padStart(2,"0"):m)+":"+String(x).padStart(2,"0")};
+function beep(){try{const a=new AudioContext();[0,.35,.7].forEach(t=>{const o=a.createOscillator(),g=a.createGain();o.frequency.value=880;o.connect(g);g.connect(a.destination);g.gain.setValueAtTime(.2,a.currentTime+t);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+t+.3);o.start(a.currentTime+t);o.stop(a.currentTime+t+.3)})}catch(e){}}
+function tick(){if(running)left=(end-Date.now())/1000;clock.textContent=fmt(left);document.title=fmt(left)+" · "+(P.label||"Timer");bar.style.width=(100*Math.max(0,left)/total)+"%";
+ if(left<=0&&!rung){rung=true;running=false;document.body.classList.add("done");go.textContent="Done";beep();try{new Notification(P.label||"Timer done")}catch(e){}}}
+go.onclick=()=>{if(left<=0)return;running=!running;if(running)end=Date.now()+left*1000;go.textContent=running?"Pause":"Resume"};
+reset.onclick=()=>{left=total;end=Date.now()+total*1000;rung=false;running=true;document.body.classList.remove("done");go.textContent="Pause";tick()};
+plus.onclick=()=>{const wasDone=left<=0;left=Math.max(0,left)+300;total=Math.max(total,left);rung=false;if(wasDone)running=true;end=Date.now()+left*1000;go.textContent=running?"Pause":"Resume";document.body.classList.remove("done");tick()};
+addEventListener("keydown",e=>{if(e.code==="Space"){e.preventDefault();go.click()}});
+try{Notification.requestPermission()}catch(e){}
+setInterval(tick,250);tick();
+</script></body></html>

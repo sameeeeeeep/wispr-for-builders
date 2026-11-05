@@ -1,0 +1,22 @@
+{
+  "name": "wispr-for-builders",
+  "description": "Wispr for Builders, Pack 1: Claude Code mods made for Wispr Flow. Say it, and your Mac does it. Unofficial; not affiliated with Wispr.",
+  "owner": { "name": "Sameep Rehlan", "url": "https://sameep.ai" },
+  "metadata": { "version": "0.1.0" },
+  "plugins": [
+    { "name": "wispr-bridge", "source": "./plugins/wispr-bridge", "version": "0.1.0", "category": "productivity",
+      "description": "The harness the other mods share: routes a dictated request to the right mod and shows choices as a small numbered card you answer by voice, keys or click." },
+    { "name": "wispr-file", "source": "./plugins/wispr-file", "version": "0.1.0", "category": "productivity",
+      "description": "Find any file on your Mac by voice. Pick from thumbnails by saying \"two\"; it pastes, reveals, opens or copies it. Spotlight runs locally." },
+    { "name": "wispr-wish", "source": "./plugins/wispr-wish", "version": "0.1.0", "category": "productivity",
+      "description": "Say what you want done to a file: \"make this a PDF\", \"compress this video for WhatsApp\", \"transcribe this\". Plus tiny apps on request: timer, bill split, QR." },
+    { "name": "wispr-review", "source": "./plugins/wispr-review", "version": "0.1.0", "category": "development",
+      "description": "Review any website by voice. A Chrome extension pins each dictated note to the element under your cursor; Claude reads the notes and fixes them." },
+    { "name": "wispr-pm", "source": "./plugins/wispr-pm", "version": "0.1.0", "category": "productivity",
+      "description": "Task boards by voice: \"park this for the portfolio\", \"what's next\", \"split this into tasks\", \"what's waiting on me\"." },
+    { "name": "wispr-guru", "source": "./plugins/wispr-guru", "version": "0.1.0", "category": "productivity",
+      "description": "A second cursor for Claude. It points at the control you need and walks you through it; answer \"done\", \"next\" or \"wait, where?\"." },
+    { "name": "wispr-video", "source": "./plugins/wispr-video", "version": "0.1.0", "category": "productivity",
+      "description": "A voice-first video editor: a teleprompter that follows your voice, word-timed captions, and edits you say out loud. Exports 9:16, 4:5 and 16:9." }
+  ]
+}

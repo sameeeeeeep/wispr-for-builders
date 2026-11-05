@@ -1,0 +1,5 @@
+{
+  "description": "Wispr Wish: links ~/.wispr-wish, registers convert + wish.run with Wispr Bridge, adds /wish",
+  "modules": ["./register.js"],
+  "hooks": {}
+}

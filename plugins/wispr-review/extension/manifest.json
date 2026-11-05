@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Wispr Review (made for Wispr)",
+  "version": "0.1.0",
+  "description": "Review any website by voice: point, hold your Wispr key and talk. Each note pins to the element under the cursor with a crop, selector and URL. Unofficial; not affiliated with Wispr.",
+  "permissions": [
+    "scripting",
+    "storage",
+    "unlimitedStorage",
+    "tabs",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Wispr Review: turn review on or off for this site (Option+Shift+R)"
+  },
+  "commands": {
+    "toggle-review": {
+      "suggested_key": {
+        "default": "Alt+Shift+R",
+        "mac": "Alt+Shift+R"
+      },
+      "description": "Turn voice review on or off on this site"
+    }
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxQmBNg6bqIhvyuF37n957fayAokIo/0v2AIXx2hNmvGIiB3kvetdS3fx+ONY4Qc9rWjELIE2a/XWx9IE9v9fD+GmWgxpYdwk01fQ6AKpKaR09293yw4HjscuFWj7MoRKbYs3uFBfVIFQH5dt9DB/xRgAV71L7N0BBfWV94Z5UtCXdq9rzeSAQeXgHxDPqxZ7WJn1iN7ZzCDgeQrYnX5KD2+jlbm5008ieMFSqt4mENI+dtc/KrgfmGPM5XtiKBHBjt7G2vaw/Lw35KOCYXjoFmpZEyDu0YA2enVp5mJt5+a1XL005RR4C2fF0xgmUBaC17BIxNZb8urWPfDd/ANpQwIDAQAB"
+}

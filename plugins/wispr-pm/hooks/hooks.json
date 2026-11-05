@@ -1,0 +1,5 @@
+{
+  "description": "Wispr PM: links ~/.wispr-pm/bin/wispr-pm, refreshes the waiting-on-you pill, adds /pm",
+  "modules": ["./register.js"],
+  "hooks": {}
+}

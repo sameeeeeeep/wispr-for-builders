@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wispr Video</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23F0D7FF' stroke='%231A1A1A' stroke-width='2.5'/%3E%3Cpath d='M12 9.5v13l11-6.5z' fill='%231A1A1A'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/app/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32"><rect x="1.25" y="1.25" width="29.5" height="29.5" rx="9" fill="var(--lilac)" stroke="var(--ink)" stroke-width="2.5"/><path d="M12 9.5v13l11-6.5z" fill="var(--ink)"/></svg></span>
+    <span class="name">Wispr <em>Video</em></span>
+  </div>
+  <div class="proj">
+    <button class="ghost icon" id="btnProjects" title="Projects" aria-label="Projects"><svg viewBox="0 0 20 20"><path d="M3 5.5h14M3 10h14M3 14.5h14"/></svg></button>
+    <input id="title" class="title" spellcheck="false" aria-label="Video title">
+  </div>
+  <div class="toggle" role="tablist" aria-label="Mode">
+    <button role="tab" data-mode="record" id="tabRecord">Record</button>
+    <button role="tab" data-mode="edit" id="tabEdit" class="on">Edit</button>
+  </div>
+  <span class="grow"></span>
+  <div class="seg" id="aspect" aria-label="Aspect ratio">
+    <button data-a="9:16">9:16</button><button data-a="4:5">4:5</button><button data-a="16:9">16:9</button>
+  </div>
+  <button class="ghost icon" id="btnUndo" title="Undo (⌘Z)" aria-label="Undo"><svg viewBox="0 0 20 20"><path d="M7.5 5 3.5 9l4 4M4 9h8a4.5 4.5 0 0 1 0 9H9"/></svg></button>
+  <button class="ghost icon" id="btnRedo" title="Redo (⇧⌘Z)" aria-label="Redo"><svg viewBox="0 0 20 20"><path d="m12.5 5 4 4-4 4M16 9H8a4.5 4.5 0 0 0 0 9h3"/></svg></button>
+  <button class="cta" id="btnExport">Export</button>
+</header>
+
+<main id="edit" class="edit">
+  <aside class="side">
+    <nav class="tabs" id="sideTabs">
+      <button data-tab="transcript" class="on">Transcript</button>
+      <button data-tab="media">Media</button>
+      <button data-tab="captions">Captions</button>
+      <button data-tab="layout">Layout</button>
+    </nav>
+    <section class="pane on" data-pane="transcript">
+      <p class="hint" id="trHint">Click a word to jump there. Select words and press <kbd>⌫</kbd> to cut them.</p>
+      <div class="transcript" id="transcript"></div>
+      <div class="selbar" id="selbar" hidden><span id="selInfo"></span><button class="small" id="btnCutSel">Cut words</button></div>
+    </section>
+    <section class="pane" data-pane="media">
+      <div class="drop" id="drop">
+        <b>Drop files here</b><span>Screen recordings, b-roll, images</span>
+        <div class="row"><button class="small" id="btnImport">Choose file…</button>
+          <select id="importRole" aria-label="Add as"><option value="media">as b-roll</option><option value="screen">as screen</option><option value="cam">as camera</option></select></div>
+        <input type="file" id="file" multiple hidden accept="video/*,image/*,audio/*">
+      </div>
+      <div class="media" id="mediaList"></div>
+    </section>
+    <section class="pane" data-pane="captions">
+      <label class="sw"><input type="checkbox" id="capOn"><span>Captions</span></label>
+      <div class="field"><span>Size</span><input type="range" id="capSize" min="0.025" max="0.09" step="0.001"></div>
+      <div class="field"><span>Height</span><input type="range" id="capY" min="0.1" max="0.92" step="0.005"></div>
+      <div class="field"><span>Words at a time</span><div class="seg small" id="capWords"><button>1</button><button>2</button><button>3</button><button>4</button><button>6</button></div></div>
+      <div class="field"><span>Style</span><div class="seg small" id="capStyle"><button data-s="plain">Shadow</button><button data-s="box">Pill</button><button data-s="upper">CAPS</button></div></div>
+      <div class="field"><span>Spoken word</span><div class="swatches" data-k="active"></div></div>
+      <div class="field"><span>Keywords</span><div class="swatches" data-k="keyword"></div></div>
+      <label class="sw"><input type="checkbox" id="capSerif"><span>Keywords in <em class="serif">italic serif</em></span></label>
+      <div class="field col"><span>Keyword list</span><input id="capKeywords" placeholder="Wispr, portfolio, 2,000"></div>
+    </section>
+    <section class="pane" data-pane="layout">
+      <div class="field col"><span>Whole video</span><div class="seg" id="layoutDefault">
+        <button data-m="auto">Auto</button><button data-m="cam">Camera</button><button data-m="screen">Screen</button><button data-m="pip">Bubble</button><button data-m="split">Split</button></div></div>
+      <p class="hint">Auto shows the bubble when there's a screen clip, the camera when there isn't. To change one stretch, select a clip and pick a layout in the inspector.</p>
+      <div class="field"><span>Bubble corner</span><div class="seg small" id="pipCorner"><button data-c="tl">↖</button><button data-c="tr">↗</button><button data-c="bl">↙</button><button data-c="br">↘</button></div></div>
+      <div class="field"><span>Bubble size</span><input type="range" id="pipSize" min="0.18" max="0.6" step="0.01"></div>
+      <div class="field"><span>Bubble shape</span><div class="seg small" id="pipShape"><button data-s="circle">Circle</button><button data-s="rounded">Rounded</button></div></div>
+      <div class="field"><span>Background</span><div class="swatches" data-k="bg"></div></div>
+    </section>
+  </aside>
+
+  <section class="center">
+    <div class="stagewrap" id="stagewrap">
+      <div class="stage" id="stage">
+        <canvas id="bgblur" class="layer"></canvas>
+        <div class="layer slot" id="slotScreen"><video id="vScreen" muted playsinline preload="auto"></video></div>
+        <div class="layer slot" id="slotCam"><video id="vCam" playsinline preload="auto"></video></div>
+        <div class="layer" id="ovLayer"></div>
+        <div class="caps" id="caps"></div>
+        <div class="empty" id="empty">
+          <h2>Don't edit, <em>just say it.</em></h2>
+          <p>Record yourself with the teleprompter, or drop a video here. Then say what you want changed.</p>
+          <div class="row"><button class="cta" id="btnGoRecord">Start recording</button><button class="ghost" id="btnGoImport">Import a video</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="ask" id="ask">
+      <button class="mic" id="btnMic" title="Dictate (or hold your Wispr key)" aria-label="Dictate an edit"><svg viewBox="0 0 20 20"><rect x="7" y="2.5" width="6" height="10" rx="3"/><path d="M4.5 9.5a5.5 5.5 0 0 0 11 0M10 15v2.5"/></svg></button>
+      <input id="askInput" placeholder="Say an edit: “cut the pauses”, “show the challenge page over line 2”" autocomplete="off">
+      <button class="send" id="btnAsk" aria-label="Send to Claude"><svg viewBox="0 0 20 20"><path d="M4 10h11M11 5.5 15.5 10 11 14.5"/></svg></button>
+    </div>
+    <div class="chips" id="chips"></div>
+  </section>
+
+  <aside class="inspector">
+    <div class="ihead"><b id="insTitle">Inspector</b><span id="insSub"></span></div>
+    <div id="insBody" class="ibody"><p class="hint">Select a clip on the timeline to change it.</p></div>
+    <div class="ihead log"><b>Claude</b><span id="claudeState"></span></div>
+    <div class="claudelog" id="claudeLog"><p class="hint">Edits you ask for show up here. Claude Code can also edit this project directly with the <code>wispr-video</code> tools.</p></div>
+  </aside>
+
+  <section class="timeline" id="timeline">
+    <div class="tbar">
+      <button class="ghost icon" id="btnPlay" aria-label="Play"><svg viewBox="0 0 20 20" id="icPlay"><path d="M6.5 4.5v11l9-5.5z" class="fill"/></svg></button>
+      <span class="tc" id="tc">0:00.0</span><span class="tcd" id="tcd">/ 0:00</span>
+      <span class="sep"></span>
+      <button class="tool" id="btnSplit" title="Split at playhead (S)">Split</button>
+      <button class="tool" id="btnDel" title="Delete (⌫) · ripple (⇧⌫)">Delete</button>
+      <button class="tool accent" id="btnPauses" title="Remove pauses and ums">Cut pauses <span id="pauseN"></span></button>
+      <span class="grow"></span>
+      <span class="status" id="status"></span>
+      <label class="zoom"><svg viewBox="0 0 20 20"><circle cx="9" cy="9" r="5"/><path d="m13 13 4 4"/></svg><input type="range" id="zoom" min="10" max="240" value="40" aria-label="Zoom"></label>
+    </div>
+    <div class="tscroll" id="tscroll">
+      <div class="tinner" id="tinner">
+        <div class="ruler" id="ruler"></div>
+        <div id="tracks"></div>
+        <div class="playhead" id="playhead"><i></i></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<main id="record" class="record" hidden>
+  <section class="prompter">
+    <div class="pmeta"><b id="pNum">1 / 1</b><span id="pVoice" class="vstat"></span></div>
+    <div class="pline" id="pLine"></div>
+    <div class="pbar"><i id="pProg"></i></div>
+    <div class="pnext" id="pNext"></div>
+    <div class="hearing" id="pHearing" hidden><i class="lvl"><b id="pLvl"></b></i><span id="pHeard">Waiting for your first words…</span></div>
+    <div class="wfall" id="pFall" hidden>
+      <p><b>Voice-follow can’t hear the mic while it records.</b> Hold your Wispr key and read the line: the words you dictate move the prompt. Or press Space.</p>
+      <input id="pWispr" placeholder="Wispr dictation lands here" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="pkeys"><kbd>space</kbd> / <kbd>→</kbd> next line · <kbd>←</kbd> back · <kbd>R</kbd> record / stop · it follows your voice and never moves on a timer</div>
+  </section>
+  <aside class="rside">
+    <div class="camwrap"><video id="rCam" muted playsinline></video><button class="camon" id="camOn">Turn on camera</button><span class="recdot" id="recDot"></span><span class="clock" id="rClock">0:00</span></div>
+    <div class="field col"><span>Record</span>
+      <div class="seg" id="rWhat"><button data-w="both">Camera + screen</button><button data-w="cam">Camera</button><button data-w="screen">Screen</button></div></div>
+    <p class="hint" id="rHint"></p>
+    <label class="sw"><input type="checkbox" id="rVoice" checked><span>Follow my voice</span></label>
+    <div class="row"><button class="cta rec" id="btnRec"><i></i>Record</button><button class="ghost" id="btnStop" disabled>Stop</button></div>
+    <div class="field col script"><span>Script <em class="hint">one paragraph per line</em></span><textarea id="script" spellcheck="true" placeholder="Paste your script. Each paragraph becomes one teleprompter line."></textarea></div>
+  </aside>
+</main>
+
+<div class="count" id="count" hidden></div>
+<div class="toast" id="toast" hidden></div>
+<dialog id="dlgExport" class="dlg">
+  <h3>Export <em>your video</em></h3>
+  <div class="seg" id="exAspect"><button data-a="9:16">9:16 · Reels</button><button data-a="4:5">4:5 · Feed</button><button data-a="16:9">16:9 · YouTube</button></div>
+  <div class="exprog" id="exProg" hidden><i></i><span></span></div>
+  <video id="exVideo" controls playsinline hidden></video>
+  <div class="row end"><button class="ghost" id="exClose">Close</button><button class="ghost" id="exReveal" hidden>Show in Finder</button><button class="cta" id="exGo">Export mp4</button></div>
+</dialog>
+<dialog id="dlgProjects" class="dlg">
+  <h3>Your <em>videos</em></h3>
+  <div id="projList" class="projlist"></div>
+  <div class="row end"><button class="ghost" id="pjClose">Close</button><button class="cta" id="pjNew">New video</button></div>
+</dialog>
+<script src="/app/app.js"></script>
+</body>
+</html>

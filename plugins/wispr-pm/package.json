@@ -1,0 +1,10 @@
+{
+  "name": "wispr-pm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Made for Wispr (unofficial): task boards by voice across projects. Park, next, split, thread, done, waiting-on-you.",
+  "type": "module",
+  "main": "lib/pm.mjs",
+  "bin": { "wispr-pm": "bin/wispr-pm" },
+  "engines": { "node": ">=18" }
+}

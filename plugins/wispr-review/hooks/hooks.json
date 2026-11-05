@@ -1,0 +1,5 @@
+{
+  "description": "Wispr Review: starts the local notes inbox (127.0.0.1:4377) and adds /wispr-review",
+  "modules": ["./register.js"],
+  "hooks": {}
+}

@@ -1,0 +1,5 @@
+{
+  "description": "Wispr Guru: guide/point/present/look tools and /guru, drawn by helper/guru",
+  "modules": ["./register.js"],
+  "hooks": {}
+}

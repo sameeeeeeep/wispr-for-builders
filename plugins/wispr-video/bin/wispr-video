@@ -1,0 +1,10 @@
+#!/bin/sh
+# Start the Wispr Video editor and open it. Projects live in ~/WisprVideo.
+DIR="$(cd "$(dirname "$0")/.." && pwd)"
+PORT="${WISPR_VIDEO_PORT:-4380}"
+if ! nc -z 127.0.0.1 "$PORT" 2>/dev/null; then
+  mkdir -p "${WISPR_VIDEO_HOME:-$HOME/WisprVideo}"
+  nohup python3 "$DIR/server/server.py" >>"${WISPR_VIDEO_HOME:-$HOME/WisprVideo}/server.log" 2>&1 &
+  for i in 1 2 3 4 5 6 7 8 9 10; do nc -z 127.0.0.1 "$PORT" 2>/dev/null && break; sleep 0.2; done
+fi
+open "http://127.0.0.1:$PORT/"

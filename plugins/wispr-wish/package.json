@@ -1,0 +1,10 @@
+{
+  "name": "wispr-wish",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Made for Wispr (unofficial): say a conversion or a mini app and it happens. Converts the Finder selection with sips, textutil, ffmpeg and whisper; opens tiny one-file apps in a small window.",
+  "type": "module",
+  "main": "lib/wish.mjs",
+  "bin": { "wispr-wish": "bin/wispr-wish" },
+  "engines": { "node": ">=18" }
+}

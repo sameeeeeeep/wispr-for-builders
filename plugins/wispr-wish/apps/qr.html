@@ -1,0 +1,20 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QR code</title><style>/*BASE*/
+#code{background:#fff;border-radius:14px;padding:12px;display:flex;justify-content:center;align-items:center;aspect-ratio:1;width:min(100%,250px);margin:0 auto}
+#code img,#code svg{width:100%;height:100%;image-rendering:pixelated}
+.txt{font-size:12px;color:var(--mute);word-break:break-all;text-align:center}
+</style></head><body>
+<main><h1>QR code</h1><div id="code"></div><div class="txt" id="txt"></div>
+<input id="inp" placeholder="Link or text"><div class="row"><button class="primary" id="save">Save PNG</button><button id="copy">Copy image</button></div></main>
+<footer><span>made for Wispr</span><span>scan with your phone</span></footer>
+<script>/*QRLIB*/</script>
+<script>
+const P=/*PARAMS*/{text:"https://example.com"};
+try{window.resizeTo(380,560)}catch(e){}
+inp.value=P.text;
+function draw(){const t=inp.value.trim()||" ";const q=qrcode(0,"M");q.addData(t,"Byte");q.make();code.innerHTML=q.createSvgTag({cellSize:8,margin:0,scalable:true});txt.textContent=t;document.title="QR · "+t.slice(0,40)}
+function png(cb){const q=qrcode(0,"M");q.addData(inp.value.trim()||" ","Byte");q.make();const n=q.getModuleCount(),s=12,m=4,c=document.createElement("canvas");c.width=c.height=(n+2*m)*s;const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,c.width,c.height);x.fillStyle="#000";for(let r=0;r<n;r++)for(let k=0;k<n;k++)if(q.isDark(r,k))x.fillRect((k+m)*s,(r+m)*s,s,s);c.toBlob(cb)}
+save.onclick=()=>png(b=>{const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="qr.png";a.click()});
+copy.onclick=()=>png(async b=>{try{await navigator.clipboard.write([new ClipboardItem({"image/png":b})]);copy.textContent="Copied"}catch(e){copy.textContent="Copy failed"}});
+inp.oninput=draw;draw();
+</script></body></html>

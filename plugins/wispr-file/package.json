@@ -1,0 +1,9 @@
+{
+  "name": "wispr-file",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Find any file by voice: Spotlight + Quick Look thumbnails on a made-for-Wispr card. Unofficial.",
+  "main": "lib/find.mjs",
+  "bin": { "wispr-file": "bin/wispr-file" },
+  "engines": { "node": ">=18" }
+}

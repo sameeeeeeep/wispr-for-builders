@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wispr Review harness</title>
+<style>body{font:16px system-ui;margin:0;background:#fafafa;color:#222}header{padding:40px;background:#fff;border-bottom:1px solid #eee}
+h1{font-size:44px;margin:0 0 8px}.cta{display:inline-block;background:#111;color:#fff;padding:12px 20px;border-radius:8px}
+section{padding:40px;min-height:500px}.card{display:inline-block;width:220px;height:140px;margin:10px;background:#e7e3ff;border-radius:12px;padding:16px}</style>
+<script>
+// a stand-in for the chrome.* APIs so content.js runs as it would in the extension
+(() => {
+  const data = {}; const changed = [];
+  const fakeShot = () => { const c = document.createElement('canvas'); c.width = innerWidth * devicePixelRatio; c.height = innerHeight * devicePixelRatio;
+    const g = c.getContext('2d'); g.fillStyle = '#dde'; g.fillRect(0, 0, c.width, c.height); g.fillStyle = '#334'; g.font = 40 * devicePixelRatio + 'px sans-serif'; g.fillText('fake screen', 40, 80 * devicePixelRatio); return c.toDataURL('image/png'); };
+  window.__sent = [];
+  window.chrome = {
+    storage: { local: { get: async (k) => ({ [k]: data[k] }), set: async (o) => { for (const [k, v] of Object.entries(o)) { const old = data[k]; data[k] = JSON.parse(JSON.stringify(v)); changed.forEach((f) => f({ [k]: { oldValue: old, newValue: data[k] } })); } } },
+      onChanged: { addListener: (f) => changed.push(f) } },
+    runtime: { lastError: null, onMessage: { addListener: (f) => (window.__onMsg = f) },
+      sendMessage: (m, cb) => { __sent.push(m); setTimeout(() => cb(m.t === 'shot' ? { d: fakeShot() } : m.t === 'sink' ? { ok: false, body: {} } : {}), 10); } },
+  };
+  window.__data = data;
+})();
+</script></head><body>
+<header><h1 id="hero-title">Type at the speed of thought</h1><p class="sub">Voice dictation that works in every app.</p><a class="cta" href="#">Get started</a></header>
+<section><h2>Features</h2><div class="card">Fast</div><div class="card">Accurate</div><div class="card">Private</div></section>
+<section><h2>Pricing</h2><p class="price">$12 / month</p></section>
+<script src="../extension/content.js"></script>
+</body></html>

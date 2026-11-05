@@ -1,0 +1,5 @@
+{
+  "description": "Wispr File: /find <request>, registers as the wispr-bridge file.find handler",
+  "modules": ["./register.js"],
+  "hooks": {}
+}

@@ -1,0 +1,10 @@
+{
+  "name": "wispr-guru",
+  "version": "0.1.0",
+  "displayName": "Wispr Guru",
+  "description": "A second cursor for Claude. Guru points at the control you need on your Mac and walks you through it step by step; answer by voice with Wispr Flow (\"done\", \"next\", \"wait, where?\").",
+  "author": { "name": "Sameep Rehlan", "url": "https://sameep.ai" },
+  "homepage": "https://sameep.ai/wispr-guru/",
+  "license": "MIT",
+  "keywords": ["wispr", "voice", "guide", "macos", "mod", "cursor"]
+}
