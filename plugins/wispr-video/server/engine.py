@@ -46,7 +46,7 @@ MOVIES = Path(os.environ.get('WISPR_VIDEO_MOVIES') or Path.home() / 'Movies' / '
 
 def movies_dir(p):
     """Where a person finds their takes and exports: ~/Movies/Wispr Video/<project title>/."""
-    name = re.sub(r'[/:\\\x00-\x1f]+', ' ', str(p.get('title') or p.get('id') or 'Video')).strip(' .')[:80] or 'Video'
+    name = re.sub(r'\s+', ' ', re.sub(r'[/:\\\x00-\x1f]+', ' ', str(p.get('title') or p.get('id') or 'Video'))).strip(' .')[:80] or 'Video'
     d = MOVIES / name; d.mkdir(parents=True, exist_ok=True)
     return d
 
