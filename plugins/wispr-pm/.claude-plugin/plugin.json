@@ -2,7 +2,7 @@
   "name": "wispr-pm",
   "version": "0.1.0",
   "displayName": "Wispr PM",
-  "description": "Run your task boards by voice. Dictate with Wispr Flow: \"park this for the portfolio\", \"what's next on nailinit\", \"split this into tasks\", \"start a thread for the hero fix\", \"what's waiting on me\". One board per project (your Switchboard board where it exists), Claude Code threads per card, decisions as small numbered cards, waiting-on-you at the notch.",
+  "description": "Task boards you dictate to with Wispr Flow: \"park this for the portfolio\", \"split this into tasks\", \"what's waiting on me\". Click Start on a card and a Claude Code session works on it, then moves it to review.",
   "author": {
     "name": "Sameep Rehlan",
     "url": "https://sameep.ai"

@@ -1,11 +1,16 @@
 # Wispr for Builders · Pack 1
 
-**Wispr is for typing, and typing is for everything.** Wispr for Builders is seven Claude Code
-mods for [Wispr Flow](https://wisprflow.ai): you say what you want, and your Mac does it. One
-install, all running on your Mac. By [Sameep Rehlan](https://sameep.ai).
+**Talk back to Claude Code, from the middle of anything.** When a Claude Code thread finishes or
+needs a call, a small card drops in from the notch, and you answer it with
+[Wispr Flow](https://wisprflow.ai) without switching windows. That's Wispr Guru, the first of seven
+Claude Code mods in Pack 1. One install, all running on your Mac. By [Sameep Rehlan](https://sameep.ai).
 
-The mods don't open your microphone: they read what Wispr Flow types into a focused field. The one
-exception is Wispr Video's recorder, which uses the mic while you record.
+![A Wispr Guru card at the notch asking "Tests pass. Ship the fix now?", with a dictated answer in its field](assets/notch.jpg)
+
+Voice is for dictation: say the real answer, the note, the search. Actions are clicks, number keys,
+or done for you when Guru sees the step happen. The mods don't open your microphone: they read what
+Wispr Flow types into a focused field. The one exception is Wispr Video's recorder, which uses the
+mic while you record.
 
 ## Install the whole pack
 
@@ -35,13 +40,71 @@ Needs macOS 13+, Claude Code, Node 18+ and Wispr Flow. Wispr Wish and Wispr Vide
 
 ## The mods
 
-### Wispr File · find any file by saying it
+Strongest first.
 
-> "the GST invoice from October" · "last screenshot of the admin panel" · "two, copy the path"
+### Wispr Guru · talk back to Claude Code, from the notch
 
-Spotlight searches your Mac, results come back as a numbered card of thumbnails, and you say
-"two". It pastes the file into the app you were in, or reveals, opens or copies it. File contents
-never leave your Mac.
+> "run the full suite first, and ping me if anything flakes"
+
+When a long Claude turn finishes, or Claude needs a decision, Guru plays a short sound and drops a
+card in from the notch with the question and its options. Click one, press its number, or dictate
+a real answer with Wispr, and it goes straight back to that thread. Guru also walks you through any
+app: it points at the control you need, shows the step beside it, and moves on when you click it.
+
+```text
+/plugin install wispr-guru@wispr-for-builders
+```
+
+### Wispr Review · review a website by talking at it
+
+> Point at the headline, hold fn and dictate "too big on mobile". Point at the price: "say per seat".
+
+A Chrome extension pins each dictated note to the element under your cursor, with a crop, the
+selector and the URL. Notes go to a local inbox, and Claude reads them with `/wispr-review` and
+fixes them one by one.
+
+![A web page in review mode: the hovered section outlined, a note being dictated, and the Wispr Review dock in the corner](assets/review.jpg)
+
+```text
+/plugin install wispr-review@wispr-for-builders
+```
+
+Then load `plugins/wispr-review/extension` in chrome://extensions (Developer mode, Load unpacked)
+and press Option+Shift+R on any site.
+
+### Wispr PM · your task boards, dictated (in progress)
+
+> "park this for the portfolio" · "split this into tasks" · "what's waiting on me"
+
+One Markdown board per project. Parked items become cards, and what's next comes back as a numbered
+card. Click Start on a card and a Claude Code session works on it, then moves it to review when
+it's done. Still being built, so expect rough edges.
+
+```text
+/plugin install wispr-pm@wispr-for-builders
+```
+
+### Wispr Video · a video editor you talk to
+
+> "cut the silences" · "captions on, highlight the product name" · "export 9:16"
+
+Record with a teleprompter that follows you as you read, add a screen take, and get word-timed
+captions from an on-device transcript. Describe the edit and Claude changes the timeline while you
+watch. Exports 9:16, 4:5 and 16:9 with ffmpeg.
+
+![The Wispr Video editor: a preview, a transcript, and a timeline with camera, screen and caption tracks](assets/video.jpg)
+
+```text
+/plugin install wispr-video@wispr-for-builders
+```
+
+### Wispr File · find any file by describing it
+
+> "the GST invoice from October" · "last screenshot of the admin panel" · "the signed lease PDF"
+
+Spotlight searches your Mac and the results come back as a numbered card of thumbnails. Click one
+or press its number, and File pastes it into the app you were in, or reveals, opens or copies it.
+File contents never leave your Mac.
 
 ![A Wispr Bridge card with three numbered poster tiles, the second selected, a note field, and a Not now button](assets/card.jpg)
 
@@ -64,68 +127,11 @@ before deleting anything.
 /plugin install wispr-wish@wispr-for-builders
 ```
 
-### Wispr Review · review a website by talking at it
-
-> Point at the headline, hold Fn: "too big on mobile". Point at the price: "say per seat".
-
-A Chrome extension pins each dictated note to the element under your cursor, with a crop, the
-selector and the URL. Notes go to a local inbox, and Claude reads them with `/wispr-review` and
-fixes them one by one.
-
-![A web page in review mode: the hovered section outlined, a note being dictated, and the Wispr Review dock in the corner](assets/review.jpg)
-
-```text
-/plugin install wispr-review@wispr-for-builders
-```
-
-Then load `plugins/wispr-review/extension` in chrome://extensions (Developer mode, Load unpacked)
-and press Option+Shift+R on any site.
-
-### Wispr PM · your task boards, by voice
-
-> "park this for the portfolio" · "what's next on the portfolio" · "split this into tasks" ·
-> "start a thread for the hero fix" · "what's waiting on me"
-
-One Markdown board per project. Parked items become cards, "what's next" comes back as a numbered
-card, and "start a thread" runs a Claude Code session on that card and moves it to review when
-it's done.
-
-```text
-/plugin install wispr-pm@wispr-for-builders
-```
-
-### Wispr Guru · a second cursor that shows you where to click
-
-> "walk me through exporting a frame in Figma"
-
-Guru points at the control you need, shows the step in a small card beside it, and moves on when
-you click it (or press Next). Stuck? Ask in the card, in your own words.
-When a long Claude turn finishes, it plays a short sound and gives you a card to dictate your reply
-into.
-
-```text
-/plugin install wispr-guru@wispr-for-builders
-```
-
-### Wispr Video · a video editor you talk to
-
-> "cut the silences" · "captions on, highlight the product name" · "export 9:16"
-
-Record with a teleprompter that moves when you finish a line, add a screen take, and get
-word-timed captions from an on-device transcript. Say the edit and Claude changes the timeline
-while you watch. Exports 9:16, 4:5 and 16:9 with ffmpeg.
-
-![The Wispr Video editor: a preview, a transcript, and a timeline with camera, screen and caption tracks](assets/video.jpg)
-
-```text
-/plugin install wispr-video@wispr-for-builders
-```
-
 ### Wispr Bridge · what ties them together
 
 `wispr-bridge ask` opens a small field. Dictate any request and it goes to the mod that handles
-it. Every mod shows choices on the same numbered card, so you answer by voice, by pressing a number
-key or by clicking. It installs with the pack, and other mods can use it: see
+it. Every mod shows choices on the same numbered card: pick with a click or a number key, and
+dictate anything longer. It installs with the pack, and other mods can use it: see
 [plugins/wispr-bridge/API.md](plugins/wispr-bridge/API.md).
 
 ```text
@@ -134,8 +140,10 @@ key or by clicking. It installs with the pack, and other mods can use it: see
 
 ---
 
-## Coming
+## Also, and coming
 
+- **[Wispr Wrapped](https://sameep.ai/wispr-wrapped/)**, the fun one: your real Flow history as a story.
+- **Wispr Social** (in progress): plan posts by talking, with a calendar and a reminder at post time.
 - **Pack 2, for editors**: for people who have Claude but haven't found what to use it for.
 - **Pack 3, for designers**.
 - A global hotkey for `wispr-bridge ask`. For now, bind it with Raycast or Shortcuts.

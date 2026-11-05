@@ -2,7 +2,7 @@
   "name": "wispr-file",
   "version": "0.1.0",
   "displayName": "Wispr File",
-  "description": "Find any file on your Mac by voice. Say \"the GST invoice from October\" with Wispr Flow, pick from Quick Look thumbnails by saying \"two\", and it is pasted into the app you were in (or revealed, opened or copied). Spotlight runs locally; file contents never leave your Mac.",
+  "description": "Find any file on your Mac by describing it with Wispr Flow (\"the GST invoice from October\"). Pick from Quick Look thumbnails with a click or a number key, and it is pasted, revealed, opened or copied. Spotlight runs locally.",
   "author": {
     "name": "Sameep Rehlan",
     "url": "https://sameep.ai"
