@@ -1082,7 +1082,7 @@ def _segment_cmd(p, a, b, W, H, out, work, still=False):
               radius=c.get('radius', 0), fade=(c.get('anim') == 'fade' and abs(a - c['at']) < 0.01),
               aspect=(lambda s: (s['w'], s['h']) if s.get('w') and s.get('h') else None)(p['sources'][c['src']]),
               clip=c, shadow=bool(c.get('shadow')))
-    fc.append(f"[{last}]format=yuv420p[vout]")
+    fc.append(f"[{last}]scale=out_range=tv:out_color_matrix=bt709,format=yuv420p,setparams=range=tv:colorspace=bt709:color_primaries=bt709:color_trc=bt709[vout]")   # one format for every segment, or the final pass rebuilds its filters mid-file and drops the captions
     if still:
         return ['ffmpeg', '-v', 'error', '-y', *args, '-filter_complex', ';'.join(fc), '-map', '[vout]', '-frames:v', '1', str(out)]
     # audio: the camera, plus any clip with volume > 0
@@ -1129,7 +1129,7 @@ def render(pid=None, aspect=None, out=None, progress=None):
         caps = render_captions(p, W, H, work)
         rd = pdir(pid) / 'exports'; rd.mkdir(exist_ok=True)
         out = Path(out) if out else rd / f"{slug(p['title'])}-{aspect.replace(':', 'x')}-{time.strftime('%H%M%S')}.mp4"
-        cmd = ['ffmpeg', '-v', 'error', '-y', '-i', str(joined)]
+        cmd = ['ffmpeg', '-v', 'error', '-y', '-reinit_filter', '0', '-i', str(joined)]
         if caps:
             cmd += ['-f', 'concat', '-safe', '0', '-i', str(caps), '-filter_complex', '[1:v]format=rgba[c];[0:v][c]overlay=0:0:eof_action=repeat,format=yuv420p[v]', '-map', '[v]', '-map', '0:a']
         tail = ['-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', str(out)]
