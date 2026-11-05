@@ -108,7 +108,7 @@ struct PresentView: View {
             HStack(spacing: 12) {
                 // Digits are text in the focused field: "2 ↵" picks, "1 but shorter ↵" picks with a note.
                 HoldToSpeak()
-                if m.multi { Hint(key: "return", what: "when done") } else { Hint(key: "1–\(max(1, m.opts.count))", what: "to pick") }
+                if m.multi { Hint(key: "return", what: "when done") } else { Hint(key: m.opts.count <= 1 ? "return" : "1–\(m.opts.count)", what: "to pick") }
                 Spacer()
                 Button("Not now") { emit(["cancelled": true, "reason": "dismissed"]) }
                     .buttonStyle(WisprButtonStyle(kind: .outline, height: 30))
