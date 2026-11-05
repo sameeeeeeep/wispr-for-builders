@@ -1,14 +1,12 @@
 # Wispr Guru
 
 A second cursor for Claude. Ask how to do something on your Mac; Guru points at the control, shows
-the step in a small card beside it, and waits. Answer by voice with Wispr Flow (“done”, “next”,
-“go back”, “wait, where?”) or by typing.
+the step in a small card beside it, and moves on when you do it (or click Next). Stuck? Hold your
+Wispr key and ask in the card, in your own words.
 
 It also brings you back to threads that are waiting: when a long Claude turn finishes, Guru plays a
 short sound (a meow by default) and shows a card you can dictate a reply into. The reply goes back
 to that exact thread.
-
-Made for Wispr by Sameep. Not a Wispr product.
 
 ## Try it for one session
 
@@ -24,7 +22,7 @@ Then ask “walk me through making this text bold in TextEdit”, or run `/guru 
 | --- | --- |
 | `guide` | One step: points at a control (by its label, found through Accessibility, so it follows the window) and waits for the reply |
 | `point` | Points for a few seconds, no waiting |
-| `present` | Up to 9 numbered options or image tiles; “two”, `2`, or “1 but shorter” |
+| `present` | Up to 9 numbered options or image tiles; click or press `2`, and add a note in your own words (“1 but shorter”) |
 | `look` | Screenshot path, window and screen rects, and controls matching a label |
 
 Other mods can call the same helper: see [API.md](API.md).

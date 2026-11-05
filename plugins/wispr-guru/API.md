@@ -47,10 +47,25 @@ Out: `{"reply":"next"}` · `{"reply":"back"}` · `{"reply":"where"}` · `{"reply
 `{"reply":"text","text":"<what they dictated/typed>"}` · `{"reply":"timeout"}`.
 Plus `"targetFound": true|false` and `"rect": {x,y,w,h}` when an arrow was drawn.
 
-The person answers by holding their Wispr key and speaking into the card ("done", "next", "go back",
-"wait, where?"), typing, or keys: **⏎** on an empty box = next, **⌘←** back, **esc** stop. Spoken
-words are normalised: done/next/ok/got it/yep → `next`; back/previous → `back`;
-where/can't find/don't see → `where`; stop/cancel/quit → `stop`; anything else → `text`.
+**Done without saying done.** Add `until` and the step ends by itself, ticking ✓ on the card and returning
+`{"reply":"next","auto":true,"by":"click"|"axChanged"|"appears"|"gone"|"windowTitle"}`. Next, ⏎ and the keys
+still work.
+
+| `until` | Ends the step when |
+| --- | --- |
+| `{"click": true}` | the person clicks inside the target (a passive global mouse monitor; the click still lands) |
+| `{"axChanged": {"label"?: "…", "attr": "AXValue" \| "AXSelected" \| "AXFocused"}}` | that attribute of the target (or of the control named `label`) changes |
+| `{"appears": {"label": "…"}}` / `{"gone": {"label": "…"}}` | a control with that label shows up in / leaves the target app |
+| `{"windowTitle": "…"}` | the target app's focused window title contains the text |
+
+The `guide` tool adds `{"click": true}` by itself when the target has a label and isn't a text field;
+pass `"until": false` to turn that off. Every overlay but the card is click-through, and the card never
+sits on the target.
+
+The step moves on when the person does it (`until`, above), clicks **Next**, or presses **⏎**; **⌘←** goes
+back, **esc** stops. The field is for their own words: a question or what they see ("I don't have that
+menu"), returned as `{"reply":"text"}`. (As a quiet fallback, a field that holds only "next", "back",
+"where?" or "stop" is read as that reply; never ask people to say them.)
 
 ### `point` — just the arrow + a label, no waiting
 

@@ -1,5 +1,8 @@
 // guru — Wispr Guru's one-shot "second cursor" for macOS.
 //
+// Drawn with WisprTheme (WisprTheme.swift): build.sh concatenates the theme ahead of this file, so
+// build with ./build.sh (or `cat WisprTheme.swift guru.swift > main.swift && swiftc main.swift ...`).
+//
 // Points at a control on screen (found through the Accessibility tree, so it follows the window),
 // shows a draggable step card beside it, waits for the person's reply (Wispr dictation, typing or
 // keys), prints ONE JSON line on stdout and exits. Same shape as the Switchboard notch's sb-card.
@@ -23,6 +26,17 @@ struct Target: Decodable {
     var relativeTo: String?
 }
 struct Option: Decodable { var label: String; var detail: String?; var image: String? }
+/// When a step counts as done without anyone saying "done". Any one of these firing ends the step with
+/// {"reply":"next","auto":true}. Voice, keys and the Done button keep working.
+struct Until: Decodable {
+    struct Watch: Decodable { var label: String?; var attr: String? }
+    struct Label: Decodable { var label: String }
+    var click: Bool?            // a mouse-down inside the target rect
+    var axChanged: Watch?       // an AX attribute of the target (or of `label`) changes: AXValue | AXSelected | AXFocused | …
+    var appears: Label?         // a control with this label shows up in the target app
+    var gone: Label?            // … or goes away
+    var windowTitle: String?    // the target app's focused window title contains this
+}
 struct Spec: Decodable {
     var mode: String?
     var say: String?; var detail: String?; var task: String?
@@ -33,6 +47,7 @@ struct Spec: Decodable {
     var ttl: Double?; var timeout: Double?
     var app: String?; var find: String?
     var shot: Bool?
+    var until: Until?
 }
 
 let slotsDir = (NSHomeDirectory() as NSString).appendingPathComponent(".wispr-guru/slots")
@@ -63,31 +78,28 @@ func emit(_ obj: [String: Any]) -> Never {
     exit(0)
 }
 
-// ── palette: Sameep's Wispr palette (fathom green on lumen ivory, flare accent) ──
-struct Palette {
-    let bg, raised, border, text, muted, accent, cursor: Color
-    static func hex(_ v: UInt32) -> Color {
-        Color(red: Double((v >> 16) & 0xFF) / 255, green: Double((v >> 8) & 0xFF) / 255, blue: Double(v & 0xFF) / 255)
-    }
-    static let light = Palette(bg: hex(0xFFFFEB), raised: hex(0xF4F3DC), border: hex(0xE4E4D0),
-                               text: hex(0x1A1A1A), muted: hex(0x5D5D52), accent: hex(0x034F46), cursor: hex(0xFF6C4C))
-    static let dark = Palette(bg: hex(0x15201E), raised: hex(0x1E2B29), border: hex(0x2E3D3A),
-                              text: hex(0xFFFFEB), muted: hex(0xA9AE9C), accent: hex(0xCFE8DC), cursor: hex(0xFF6C4C))
-}
+// ── look: WisprTheme (Figtree UI, EB Garamond display), fonts shipped in the plugin's fonts/ ──
+typealias W = WisprTheme
+func ui(_ size: CGFloat, _ w: Font.Weight = .regular) -> Font { W.sans(size, w) }
+func serif(_ size: CGFloat) -> Font { W.serif(size) }
+/// Room around the card so its shadow is not clipped by the borderless window.
+let shadowPad: CGFloat = 18
 
-// ── type: Wispr Flow's own faces (Figtree UI, EB Garamond display, Google Sans Code keys), registered
-// for this process from the installed Wispr Flow app; system fonts if it isn't installed ──
-func registerWisprFonts() {
-    let dir = "/Applications/Wispr Flow.app/Contents/Resources/assets/fonts"
-    for f in ["Figtree/Figtree-VariableFont_wght.ttf", "EBGaramond/EBGaramond-VariableFont_wght.ttf",
-              "Google_Sans_Code/GoogleSansCode-VariableFont_wght.ttf"] {
-        let u = URL(fileURLWithPath: dir + "/" + f)
-        if FileManager.default.fileExists(atPath: u.path) { CTFontManagerRegisterFontsForURL(u as CFURL, .process, nil) }
+/// The folder that holds fonts/: $WISPR_PLUGIN_ROOT, else the folder above helper/ (the plugin), else
+/// ~/.wispr-guru (where register.js copies the helper and its fonts for the other Wispr mods).
+func pluginRoot() -> URL {
+    let fm = FileManager.default
+    var cands: [URL] = []
+    for k in ["WISPR_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT"] {
+        if let v = ProcessInfo.processInfo.environment[k], !v.isEmpty { cands.append(URL(fileURLWithPath: v)) }
     }
+    let exe = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+    cands.append(exe.deletingLastPathComponent().deletingLastPathComponent())
+    cands.append(exe.deletingLastPathComponent())
+    cands.append(URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".wispr-guru"))
+    return cands.first { fm.fileExists(atPath: $0.appendingPathComponent("fonts").path) }
+        ?? exe.deletingLastPathComponent().deletingLastPathComponent()
 }
-func ui(_ size: CGFloat, _ w: Font.Weight = .regular) -> Font { Font.custom("Figtree", size: size).weight(w) }
-func serif(_ size: CGFloat) -> Font { Font.custom("EB Garamond", size: size) }
-func mono(_ size: CGFloat) -> Font { Font.custom("Google Sans Code", size: size).weight(.medium) }
 
 let FLARE = NSColor(srgbRed: 1, green: 0x6C / 255, blue: 0x4C / 255, alpha: 1)
 
@@ -305,7 +317,7 @@ final class OverlayView: NSView {
         sh.shadowColor = NSColor.black.withAlphaComponent(0.35); sh.set()
         FLARE.setFill(); p.fill()
         NSColor.white.setStroke(); p.lineWidth = 1.5; p.stroke()
-        let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11.5, weight: .semibold), .foregroundColor: NSColor.white]
+        let attrs: [NSAttributedString.Key: Any] = [.font: W.nsSans(11.5, .semibold), .foregroundColor: NSColor.white]
         let s = NSAttributedString(string: name, attributes: attrs)
         let sz = s.size()
         let pill = NSRect(x: 16, y: -42, width: sz.width + 16, height: sz.height + 7)
@@ -413,10 +425,12 @@ final class Model: ObservableObject {
     @Published var found: Bool? = nil
     @Published var listening = false
     @Published var mini: Bool
+    @Published var completed = false
     var onWhere: (() -> Void)?
     init(_ s: Spec) { spec = s; mini = s.size == "mini" }
     var isPresent: Bool { spec.mode == "present" }
     var isReply: Bool { spec.mode == "reply" }
+    var isStep: Bool { spec.mode == nil || spec.mode == "step" }
     func send(_ raw: String) {
         if isReply {
             let t = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -436,123 +450,140 @@ final class Model: ObservableObject {
 
 struct CardView: View {
     @ObservedObject var m: Model
-    @Environment(\.colorScheme) var scheme
     @FocusState var focused: Bool
-    var p: Palette { scheme == .dark ? .dark : .light }
 
     var header: some View {
         HStack(spacing: 7) {
-            Circle().fill(p.cursor).frame(width: 7, height: 7)
-                .opacity(m.listening ? 0.4 : 1).animation(.easeInOut(duration: 0.6).repeatForever(), value: m.listening)
-            Text("Guru").font(ui(11.5, .semibold)).foregroundColor(p.accent)
-            if let t = m.spec.task { Text("· " + t).font(ui(11.5)).foregroundColor(p.muted).lineLimit(1) }
+            // the flare dot only while the card has the keyboard, i.e. while dictation lands here
+            if m.listening {
+                Circle().fill(W.flare).frame(width: 6, height: 6).transition(.opacity)
+            }
+            WisprLockup(name: "Wispr Guru", size: 13)
+            if let t = m.spec.task { Text(t).font(ui(12.5)).foregroundColor(W.fg3).lineLimit(1) }
             Spacer(minLength: 6)
             if let i = m.spec.index, let n = m.spec.total {
-                Text("\(i) of \(n)").font(ui(10.5, .medium)).foregroundColor(p.muted)
-                    .padding(.horizontal, 7).padding(.vertical, 2).background(Capsule().fill(p.raised))
+                Text("\(i) of \(n)").font(ui(11, .medium)).foregroundColor(W.fg2)
+                    .padding(.horizontal, 7).padding(.vertical, 2)
+                    .background(RoundedRectangle(cornerRadius: W.rSM).fill(W.sand600))
             }
             Button { m.mini.toggle(); relayout() } label: {
                 Image(systemName: m.mini ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left")
-                    .font(ui(9.5, .semibold)).foregroundColor(p.muted)
+                    .font(.system(size: 11, weight: .regular)).foregroundColor(W.fg3)
+                    .frame(width: 24, height: 24).contentShape(RoundedRectangle(cornerRadius: W.rSM))
             }.buttonStyle(.plain).help(m.mini ? "Bigger card" : "Smaller card")
         }
     }
 
     var field: some View {
         HStack(spacing: 8) {
-            Image(systemName: "mic.fill").font(ui(11)).foregroundColor(focused ? p.cursor : p.muted)
-            TextField("", text: $m.typed, prompt: Text(m.isReply ? "Click, hold Fn and reply" : m.isPresent ? "Say “two”, or type" : "Hold Fn and say “done”, or “where?”")
-                .foregroundColor(p.muted.opacity(0.75)))
-                .textFieldStyle(.plain).font(ui(13)).foregroundColor(p.text)
+            Image(systemName: "mic").font(.system(size: 12, weight: .light)).foregroundColor(focused ? W.fg : W.fg3)
+            TextField("", text: $m.typed, prompt: Text(m.isReply ? "Speak or type your reply" : m.isPresent ? "Add a note, or type a number" : "Stuck? Ask here")
+                .foregroundColor(W.fg3))
+                .textFieldStyle(.plain).font(ui(13.5)).foregroundColor(W.fg)
                 .focused($focused).onSubmit { m.send(m.typed) }
         }
-        .padding(.horizontal, 11).padding(.vertical, 9)
-        .background(RoundedRectangle(cornerRadius: 11).fill(p.raised))
-        .overlay(RoundedRectangle(cornerRadius: 11).stroke(focused ? p.accent.opacity(0.6) : p.border, lineWidth: 1))
+        .padding(.horizontal, 12).frame(height: 36)
+        .background(RoundedRectangle(cornerRadius: W.rMD).fill(Color.white))
+        .overlay(RoundedRectangle(cornerRadius: W.rMD).stroke(focused ? W.fieldFocus : W.border, lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: W.rMD + 3).stroke(focused ? W.fieldRing : .clear, lineWidth: 3).padding(-2.5))
+        .animation(W.ease, value: focused)
     }
 
     func keycap(_ key: String, _ what: String) -> some View {
-        HStack(spacing: 4) {
-            Text(key).font(mono(9.5)).foregroundColor(p.text)
-                .padding(.horizontal, 5).padding(.vertical, 1.5)
-                .background(RoundedRectangle(cornerRadius: 4).fill(p.raised))
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(p.border, lineWidth: 1))
-            Text(what).font(ui(10)).foregroundColor(p.muted)
+        HStack(spacing: 5) {
+            WisprKeycap(label: key, size: 12)
+            Text(what).font(ui(12.5, .medium)).foregroundColor(W.fg2)
+        }
+    }
+    /// Flow's hold-to-talk line: "Hold [fn] and speak", keycap inline.
+    var holdToSpeak: some View {
+        HStack(spacing: 5) {
+            Text("Hold").font(ui(12.5, .medium)).foregroundColor(W.fg2)
+            WisprKeycap(label: "fn", size: 12)
+            Text("and speak").font(ui(12.5, .medium)).foregroundColor(W.fg2)
         }
     }
 
-    func chip(_ label: String, _ action: @escaping () -> Void, primary: Bool = false) -> some View {
-        Button(action: action) {
-            Text(label).font(ui(12.5, primary ? .semibold : .medium))
-                .foregroundColor(primary ? p.bg : p.text)
-                .padding(.horizontal, 12).padding(.vertical, 6)
-                .background(Capsule().fill(primary ? p.accent : p.raised))
-                .overlay(Capsule().stroke(primary ? Color.clear : p.border, lineWidth: 1))
-        }.buttonStyle(.plain)
+    func button(_ label: String, _ kind: WisprButtonStyle.Kind, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) { Text(label) }.buttonStyle(WisprButtonStyle(kind: kind, height: 30))
     }
 
     var body: some View {
         Group {
             if m.mini { miniBody } else { fullBody }
         }
-        .background(RoundedRectangle(cornerRadius: m.mini ? 22 : 18).fill(p.bg))
-        .overlay(RoundedRectangle(cornerRadius: m.mini ? 22 : 18).stroke(p.border, lineWidth: 1))
-        .scaleEffect(m.shown ? 1 : 0.94).opacity(m.shown ? 1 : 0)
+        .wisprSurface()
+        .padding(shadowPad)
+        .scaleEffect(m.shown ? 1 : 0.97).opacity(m.shown ? 1 : 0)
         .onAppear { if !m.isReply { focused = true } }
-        .onHover { inside in if inside && m.isReply { claimFocus(); focused = true } }
+        .onHover { inside in if inside && (m.isReply || m.isStep) { claimFocus(); focused = true } }
     }
 
     var miniBody: some View {
         HStack(spacing: 9) {
-            Circle().fill(p.cursor).frame(width: 7, height: 7)
-            Text(m.spec.say ?? "").font(ui(13, .medium)).foregroundColor(p.text).lineLimit(1)
-            TextField("", text: $m.typed, prompt: Text("say “done”").foregroundColor(p.muted.opacity(0.7)))
-                .textFieldStyle(.plain).font(ui(12.5)).frame(width: 96)
+            Circle().fill(m.listening ? W.flare : W.vast200).frame(width: 6, height: 6)
+            Text(m.spec.say ?? "").font(ui(13.5, .medium)).foregroundColor(W.fg).lineLimit(1)
+            TextField("", text: $m.typed, prompt: Text("↵ next").foregroundColor(W.fg3))
+                .textFieldStyle(.plain).font(ui(13)).foregroundColor(W.fg).frame(width: 96)
                 .focused($focused).onSubmit { m.send(m.typed) }
             Button { m.mini = false; relayout() } label: {
-                Image(systemName: "arrow.up.left.and.arrow.down.right").font(ui(9.5, .semibold)).foregroundColor(p.muted)
-            }.buttonStyle(.plain)
+                Image(systemName: "arrow.up.left.and.arrow.down.right").font(.system(size: 11, weight: .regular)).foregroundColor(W.fg3)
+            }.buttonStyle(.plain).help("Bigger card")
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
         .fixedSize()
     }
 
     var fullBody: some View {
-        VStack(alignment: .leading, spacing: 11) {
+        VStack(alignment: .leading, spacing: 12) {
             header
-            Text(m.spec.say ?? "").font(serif(21)).foregroundColor(p.text)
+            Text(m.spec.say ?? "").font(serif(23)).foregroundColor(W.fg)
                 .fixedSize(horizontal: false, vertical: true)
             if let d = m.spec.detail, !d.isEmpty {
-                Text(d).font(ui(12.5)).foregroundColor(p.muted).fixedSize(horizontal: false, vertical: true)
+                Text(d).font(ui(13.5)).foregroundColor(W.fg2).fixedSize(horizontal: false, vertical: true)
             }
-            if m.found == false {
-                Text("I can't spot it on screen right now. Say where you are, or “where?” and I'll look again.")
-                    .font(ui(11.5)).foregroundColor(p.cursor).fixedSize(horizontal: false, vertical: true)
+            if m.completed {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark").font(.system(size: 12, weight: .bold))
+                    Text("Done").font(ui(13.5, .semibold))
+                }.foregroundColor(W.green600).transition(.opacity)
+            } else if m.found == false {
+                Text("Guru can't find it on screen. Tell it what you see, or press Where? to look again.")
+                    .font(ui(12.5)).foregroundColor(W.red600).fixedSize(horizontal: false, vertical: true)
             }
             if m.isPresent, let opts = m.spec.options { optionsView(opts) }
             field
             if m.isReply {
                 HStack(spacing: 6) {
-                    chip("Dismiss", { emit(["reply": "stop"]) })
+                    button("Not now", .ghost) { emit(["reply": "stop"]) }
                     Spacer()
-                    chip("Send to thread", { m.send(m.typed) }, primary: true)
+                    button("Reply", .primary) { m.send(m.typed) }
                 }
             } else if !m.isPresent {
                 HStack(spacing: 6) {
-                    chip("Back", { emit(["reply": "back"]) })
-                    chip("Where?", { m.send("where") })
+                    button("Back", .ghost) { emit(["reply": "back"]) }
+                    button("Where?", .secondary) { m.send("where") }
                     Spacer()
-                    chip("Done", { emit(["reply": "next"]) }, primary: true)
+                    button("Next", .primary) { emit(["reply": "next"]) }
                 }
             }
-            HStack(spacing: 10) {
-                keycap(m.isPresent ? "1–\(m.spec.options?.count ?? 1)" : "↵", m.isPresent ? "choose" : m.isReply ? "send" : "done")
-                keycap("esc", "stop")
+            HStack(spacing: 12) {
+                // Voice is for words (a reply, a note, a question), not for pressing buttons.
+                if m.isReply { holdToSpeak }
+                else if m.isPresent { keycap("1–\(m.spec.options?.count ?? 1)", "to pick") }
+                else { keycap("↵", "next") }
                 Spacer()
-                Text("drag to move · made for Wispr").font(ui(10)).foregroundColor(p.muted.opacity(0.75))
+                keycap("esc", "to stop")
             }
         }
-        .padding(16).frame(width: 340)
+        .padding(24).frame(width: 384)
+    }
+
+    func badge(_ n: Int) -> some View {
+        Text("\(n)").font(ui(12, .semibold)).foregroundColor(W.vast900)
+            .frame(width: 22, height: 22)
+            .background(RoundedRectangle(cornerRadius: W.rSM).fill(Color.white))
+            .overlay(RoundedRectangle(cornerRadius: W.rSM).stroke(W.border, lineWidth: 1))
     }
 
     @ViewBuilder func optionsView(_ opts: [Option]) -> some View {
@@ -561,37 +592,50 @@ struct CardView: View {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 ForEach(Array(opts.enumerated()), id: \.offset) { i, o in
                     Button { m.pick(i + 1) } label: {
-                        VStack(spacing: 4) {
+                        VStack(alignment: .leading, spacing: 4) {
                             ZStack(alignment: .topLeading) {
                                 if let img = NSImage(contentsOfFile: o.image!) {
                                     Image(nsImage: img).resizable().aspectRatio(contentMode: .fill).frame(height: 70).clipped()
-                                } else { Rectangle().fill(p.raised).frame(height: 70) }
-                                Text("\(i + 1)").font(ui(10.5, .bold)).foregroundColor(p.bg)
-                                    .frame(width: 18, height: 18).background(Circle().fill(p.accent)).padding(4)
-                            }.clipShape(RoundedRectangle(cornerRadius: 8))
-                            Text(o.label).font(ui(10.5)).foregroundColor(p.text).lineLimit(1)
+                                } else { Rectangle().fill(W.sand500).frame(height: 70) }
+                                badge(i + 1).padding(4)
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: W.rMD))
+                            .overlay(RoundedRectangle(cornerRadius: W.rMD).stroke(W.border, lineWidth: 1))
+                            Text(o.label).font(ui(11.5, .medium)).foregroundColor(W.fg).lineLimit(1)
                         }
                     }.buttonStyle(.plain)
                 }
             }
         } else {
-            VStack(spacing: 5) {
+            VStack(spacing: 6) {
                 ForEach(Array(opts.enumerated()), id: \.offset) { i, o in
                     Button { m.pick(i + 1) } label: {
-                        HStack(alignment: .top, spacing: 9) {
-                            Text("\(i + 1)").font(ui(11, .bold)).foregroundColor(p.bg)
-                                .frame(width: 20, height: 20).background(RoundedRectangle(cornerRadius: 6).fill(p.accent))
+                        HStack(alignment: .top, spacing: 10) {
+                            badge(i + 1)
                             VStack(alignment: .leading, spacing: 1) {
-                                Text(o.label).font(ui(13, .medium)).foregroundColor(p.text)
-                                if let d = o.detail { Text(d).font(ui(11)).foregroundColor(p.muted).lineLimit(2) }
+                                Text(o.label).font(ui(14, .medium)).foregroundColor(W.fg)
+                                if let d = o.detail { Text(d).font(ui(12.5)).foregroundColor(W.fg2).lineLimit(2) }
                             }
                             Spacer(minLength: 0)
                         }
-                        .padding(8).background(RoundedRectangle(cornerRadius: 10).fill(p.raised)).contentShape(Rectangle())
+                        .padding(.horizontal, 10).padding(.vertical, 9)
+                        .modifier(OptionRowSurface())
+                        .contentShape(Rectangle())
                     }.buttonStyle(.plain)
                 }
             }
         }
+    }
+}
+
+/// An option row: white with a sand-600 edge, sand-200 on hover (Flow's list rows).
+struct OptionRowSurface: ViewModifier {
+    @State private var hover = false
+    func body(content: Content) -> some View {
+        content
+            .background(RoundedRectangle(cornerRadius: W.rMD).fill(hover ? W.sand200 : Color.white))
+            .overlay(RoundedRectangle(cornerRadius: W.rMD).stroke(hover ? W.sand700.opacity(0.6) : W.border, lineWidth: 1))
+            .onHover { hover = $0 }.animation(W.ease, value: hover)
     }
 }
 
@@ -720,8 +764,9 @@ if mode == "look" {
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 installEditMenu()
-registerWisprFonts()
-if let a = ProcessInfo.processInfo.environment["GURU_APPEARANCE"] { app.appearance = NSAppearance(named: a == "dark" ? .darkAqua : .aqua) }
+// Wispr's cards are light (the Flow app's default look), whatever the system appearance.
+app.appearance = NSAppearance(named: .aqua)
+WisprTheme.registerFonts(in: pluginRoot())
 
 signal(SIGTERM) { _ in if let mySlot { unlink(mySlot) }; exit(0) }
 let overlay = Overlay(tag: "Guru", screens: mode == "reply" ? [] : NSScreen.screens)
@@ -747,7 +792,7 @@ host.layoutSubtreeIfNeeded()
 panel = CardPanel(contentRect: NSRect(origin: .zero, size: host.fittingSize),
                   styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
 panel.contentView = host
-panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = true
+panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = false   // the card draws its own shadow
 panel.level = NSWindow.Level(rawValue: NSWindow.Level.popUpMenu.rawValue + 2)
 panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 panel.isMovableByWindowBackground = true
@@ -786,11 +831,16 @@ if mode == "reply" {
     panel.setFrameOrigin(NSPoint(x: v.maxX - sz.width - 14, y: v.maxY - 10 - CGFloat(slot + 1) * (sz.height + 10)))
     placing = false
     panel.orderFrontRegardless()
+} else if mode == "step" {
+    // A step must not take the keyboard or activation from the app being guided: an inactive app (Chrome,
+    // most Mac apps) spends the first click only on activating itself, so the highlighted control seemed
+    // dead. The card floats on top and takes focus when the pointer is over it (to talk to it).
+    panel.orderFrontRegardless()
 } else {
     panel.makeKeyAndOrderFront(nil)
     app.activate(ignoringOtherApps: true)
 }
-DispatchQueue.main.async { withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) { model.shown = true } }
+DispatchQueue.main.async { withAnimation(WisprTheme.easeOut) { model.shown = true } }
 
 NSEvent.addLocalMonitorForEvents(matching: .keyDown) { ev in
     if ev.keyCode == 53 { emit(["reply": "stop"]) }
@@ -798,6 +848,71 @@ NSEvent.addLocalMonitorForEvents(matching: .keyDown) { ev in
     if model.isPresent, model.typed.isEmpty, !(panel.firstResponder is NSTextView), let c = ev.charactersIgnoringModifiers, let n = Int(c), n >= 1, n <= (spec.options?.count ?? 0) { model.pick(n) }
     return ev
 }
+// ── completion detection (step mode, `until`) ──
+var completing = false
+func completeStep(_ why: String) {
+    if completing { return }
+    completing = true
+    withAnimation(WisprTheme.easeOut) { model.completed = true }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { emit(["reply": "next", "auto": true, "by": why]) }
+}
+if mode == "step", let u = spec.until {
+    let pid = tracker.pid
+    // a click on the target: a passive global monitor (it sees clicks meant for other apps, changes nothing)
+    if u.click == true {
+        NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown]) { _ in
+            guard let r = tracker.lastRect else { return }
+            if toCocoa(r).insetBy(dx: -4, dy: -4).contains(NSEvent.mouseLocation) {
+                // let the click land and the app react before the card moves on
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { completeStep("click") }
+            }
+        }
+    }
+    if let w = u.axChanged {
+        let attr = w.attr ?? "AXValue"
+        var watched: AXUIElement? = nil, before: String? = nil, started = false
+        func describe(_ e: AXUIElement) -> String { axAttr(e, attr).map { "\($0)" } ?? "∅" }
+        Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { _ in
+            if watched == nil {
+                if let l = w.label, l != spec.target?.label, let pid {
+                    watched = searchAX(pid: pid, label: l, role: nil, limit: 1, budget: 0.8).first?.el
+                } else { watched = tracker.el }
+                if let e = watched { before = describe(e); started = true }
+                return
+            }
+            guard started, let e = watched else { return }
+            let now = describe(e)
+            if now != before { completeStep("axChanged") }
+        }
+    }
+    if let a = u.appears?.label ?? u.gone?.label, let pid {
+        let wantGone = u.gone != nil
+        var seen = false, missed = false, checks = 0, busy = false
+        let q = DispatchQueue(label: "guru.until")
+        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            if busy { return }; busy = true
+            q.async {
+                let hit = !searchAX(pid: pid, label: a, role: nil, limit: 1, budget: 0.8).isEmpty
+                DispatchQueue.main.async {
+                    busy = false; checks += 1
+                    // appears: it was missing on an earlier look and is there now; gone: the reverse
+                    if !wantGone, hit, missed { completeStep("appears") }
+                    if hit { seen = true } else { missed = true }
+                    if wantGone, !hit, seen || checks >= 2 { completeStep("gone") }
+                }
+            }
+        }
+    }
+    if let t = u.windowTitle?.lowercased(), !t.isEmpty, let pid {
+        let axApp = AXUIElementCreateApplication(pid)
+        Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
+            guard let wv = axAttr(axApp, kAXFocusedWindowAttribute) else { return }
+            let title = axString(wv as! AXUIElement, kAXTitleAttribute) ?? ""
+            if title.lowercased().contains(t) { completeStep("windowTitle") }
+        }
+    }
+}
+
 // A double-tap on the card's own field focuses it again after the person clicked away.
 DispatchQueue.main.asyncAfter(deadline: .now() + (spec.timeout ?? 540)) { emit(["reply": "timeout"]) }
 app.run()

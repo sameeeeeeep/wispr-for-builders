@@ -43,7 +43,7 @@ Spotlight searches your Mac, results come back as a numbered card of thumbnails,
 "two". It pastes the file into the app you were in, or reveals, opens or copies it. File contents
 never leave your Mac.
 
-![A Wispr Bridge card with three numbered image tiles, the second selected, and a field that says Say two](assets/card.jpg)
+![A Wispr Bridge card with three numbered poster tiles, the second selected, a note field, and a Not now button](assets/card.jpg)
 
 ```text
 /plugin install wispr-file@wispr-for-builders
@@ -96,9 +96,10 @@ it's done.
 
 ### Wispr Guru · a second cursor that shows you where to click
 
-> "walk me through exporting a frame in Figma" · then "done", "next", "wait, where?"
+> "walk me through exporting a frame in Figma"
 
-Guru points at the control you need, shows the step in a small card beside it, and waits for you.
+Guru points at the control you need, shows the step in a small card beside it, and moves on when
+you click it (or press Next). Stuck? Ask in the card, in your own words.
 When a long Claude turn finishes, it plays a short sound and gives you a card to dictate your reply
 into.
 

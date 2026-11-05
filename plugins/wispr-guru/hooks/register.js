@@ -1,5 +1,5 @@
 // wispr-guru — a second cursor for Claude. Guru points at things on your screen and walks you
-// through them; you answer by voice (hold your Wispr key, say "done", "next", "wait, where?").
+// through them; each step moves on when you do it (or click Next / press ↵).
 //
 // All drawing is helper/guru, a one-shot native program (see ../API.md). This module gives Claude
 // four tools (guide, point, present, look), the /guru command, and copies the helper to a stable
@@ -16,8 +16,9 @@ export function register(on) {
       name: 'guide',
       description:
         'Walk the person through a task on their Mac, one step at a time, with a second cursor that points at the control to use and a small step card beside it. ' +
-        'Call it once per step: it shows the step, waits for their reply, and returns it. They answer by voice through Wispr Flow ("done", "next", "go back", "wait, where?") or by typing. ' +
+        'Call it once per step: it shows the step, waits for their reply, and returns it. The step moves on by itself when they do it (see until), or when they click Next or press return; they can also type or dictate a question into the card. Never tell them to say "done" or "next". ' +
         'Returns reply: next | back | where | stop | text (with what they said) | timeout, plus targetFound and the rect pointed at. ' +
+        'The step also ends by itself when it is done: a click on a labelled control counts by default (reply next, auto: true). Use `until` for other signs of done: a value changing, something appearing or going away, a window title; `until: false` turns it off. ' +
         'Target the control by its visible label (found through Accessibility, follows the window if it moves) and the app; give x/y screen points from a `look` screenshot only when there is no label. ' +
         'On "where", call `look` and retry with a better target or a clearer step. On "text", answer what they said and continue. Before the first step, open the app if needed. ' +
         'Use it whenever the person asks how to do something in an app, says "show me", "guide me", "walk me through", or when a task needs them to click something only they can.',
@@ -41,6 +42,22 @@ export function register(on) {
           index: { type: 'number', description: 'This step number (1-based).' },
           total: { type: 'number', description: 'Total steps, if known.' },
           size: { type: 'string', enum: ['full', 'mini'], description: 'mini = a one-line pill for quick hints.' },
+          until: {
+            description: 'How Guru knows the step is done without being told (default for a labelled control that is not a text field: {click:true}). false = only voice/keys.',
+            anyOf: [
+              { type: 'boolean', enum: [false] },
+              {
+                type: 'object',
+                properties: {
+                  click: { type: 'boolean', description: 'A click inside the target.' },
+                  axChanged: { type: 'object', properties: { label: { type: 'string' }, attr: { type: 'string', description: 'AXValue (default), AXSelected, AXFocused, AXTitle…' } }, description: 'An attribute of the target (or of the control named by label) changes.' },
+                  appears: { type: 'object', properties: { label: { type: 'string' } }, required: ['label'], description: 'A control with this label shows up (a sheet, a dialog, a new tab).' },
+                  gone: { type: 'object', properties: { label: { type: 'string' } }, required: ['label'], description: 'A control with this label goes away.' },
+                  windowTitle: { type: 'string', description: "The app's front window title contains this." },
+                },
+              },
+            ],
+          },
         },
         required: ['say'],
       },
@@ -60,7 +77,7 @@ export function register(on) {
     })
     await reg({
       name: 'present',
-      description: 'Show the person up to 9 numbered options (or image tiles) in a card and wait for their pick. They say "two" / "the second one", press 1-9, or say something else. Returns {pick, label} or {reply:"text", text}.',
+      description: 'Show the person up to 9 numbered options (or image tiles) in a card and wait for their pick. They click one or press 1-9, and can add a note in their own words ("1 but make it shorter"). Returns {pick, label} or {reply:"text", text}.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -129,7 +146,7 @@ export function register(on) {
     if (verb === 'back') { cfg.back = rest[0] !== 'off'; await saveCfg($, cfg); return { text: 'wispr back ' + (cfg.back ? 'on' : 'off') } }
     if (verb === 'ping') { void offerReply($, cfg, 'Test: this thread is waiting on you. Hold your Wispr key and answer here.'); return { text: 'reply card shown' } }
     if (arg === 'test') {
-      const r = await runGuru($, { mode: 'step', say: 'Guru is working. Say "done".', detail: 'Hold your Wispr key and speak into this card, or press return.', task: 'Test', index: 1, total: 1, target: { label: 'Help', role: 'menuitem' } })
+      const r = await runGuru($, { mode: 'step', say: 'Guru is working.', detail: 'Click Next or press return.', task: 'Test', index: 1, total: 1, target: { label: 'Help', role: 'menuitem' } })
       return { text: 'guru test → ' + JSON.stringify(r) }
     }
     if (!arg) return { text: 'Usage: /guru <what you want to do> (e.g. /guru make this text bold) · test · ping · sound [meow|metal|pspsps|boop|off] [here] · mute · unmute · quiet 22-8|off · back on|off' }
@@ -137,13 +154,22 @@ export function register(on) {
     return { text: 'guru: ' + arg }
   })
 
-  on('tool.call', { tool: 'mcp__wispr-guru__guide' }, async ($, e) => wrap(await runGuru($, { ...pick(e), mode: 'step' })))
+  on('tool.call', { tool: 'mcp__wispr-guru__guide' }, async ($, e) => wrap(await runGuru($, withUntil({ ...pick(e), mode: 'step' }))))
   on('tool.call', { tool: 'mcp__wispr-guru__point' }, async ($, e) => wrap(await runGuru($, { ...pick(e), mode: 'point' })))
   on('tool.call', { tool: 'mcp__wispr-guru__present' }, async ($, e) => wrap(await runGuru($, { ...pick(e), mode: 'present' })))
   on('tool.call', { tool: 'mcp__wispr-guru__look' }, async ($, e) => wrap(await runGuru($, { ...pick(e), mode: 'look' })))
 }
 
-const KEYS = ['say', 'detail', 'target', 'task', 'index', 'total', 'size', 'options', 'at', 'ttl', 'app', 'find', 'shot']
+const KEYS = ['say', 'detail', 'target', 'task', 'index', 'total', 'size', 'options', 'at', 'ttl', 'app', 'find', 'shot', 'until']
+// A step on a clickable control finishes when it is clicked, unless the caller said otherwise.
+const TYPING_ROLES = /^(field|text|textfield|textarea|search|searchfield|combobox)$/i
+function withUntil(spec) {
+  if (spec.until === false) { const { until, ...rest } = spec; return rest }
+  if (spec.until && typeof spec.until === 'object') return spec
+  const t = spec.target
+  if (t && t.label && !TYPING_ROLES.test(t.role || '')) return { ...spec, until: { click: true } }
+  return spec
+}
 function pick(e) {
   const o = {}
   for (const k of KEYS) if (e[k] !== undefined) o[k] = e[k]
@@ -162,13 +188,14 @@ function guideAsk(goal) {
     'Guide them through it on their own screen with the wispr-guru tools; do not do it for them.',
     'Plan the steps, open the app if needed, call `look` to see where things are, then call `guide` once per step (say, target.label + target.app, index, total, task).',
     'Advance on reply "next"; on "where" call `look` again and re-point; on "back" repeat the previous step; on "text" answer them and carry on; on "stop" end.',
-    'After their last "done", check with `look` that it worked and tell them in one line.',
+    'After the last step, check with `look` that it worked and tell them in one line. Never ask them to say "done" or "next": steps move on when they do them or click Next.',
   ].join('\n')
 }
 
 async function installHelper($) {
   // Stable path for the other pack mods; refreshed every session so it tracks this plugin's version.
-  await $.process.run(['/bin/sh', '-c', 'mkdir -p "$HOME/.wispr-guru" && cp -f "$1" "$HOME/.wispr-guru/guru" && chmod +x "$HOME/.wispr-guru/guru"', 'sh', $.plugin.root + '/helper/guru'], { timeoutMs: 5000 })
+  // fonts/ goes along so the copy draws in Figtree / EB Garamond too (the helper looks for ./fonts next to itself).
+  await $.process.run(['/bin/sh', '-c', 'mkdir -p "$HOME/.wispr-guru" && cp -f "$1" "$HOME/.wispr-guru/guru" && chmod +x "$HOME/.wispr-guru/guru" && if [ -d "$2" ]; then rm -rf "$HOME/.wispr-guru/fonts" && cp -R "$2" "$HOME/.wispr-guru/fonts"; fi', 'sh', $.plugin.root + '/helper/guru', $.plugin.root + '/fonts'], { timeoutMs: 5000 })
 }
 
 async function runGuru($, spec) {
